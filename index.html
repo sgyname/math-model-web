@@ -1,0 +1,2581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>高中数学动态模型 — 课堂演示平台</title>
+
+<!-- ============================================================
+     高中数学课堂演示平台（单文件版 · 国创赛参赛作品）
+     - 覆盖：基本函数 / 三角函数 / 圆锥曲线 / 立体几何 / 数列与代数 / 统计与导数
+     - 共 23 个参数化动态模型（含 3D 立体几何、单位圆、三类自定义函数/方程、多函数对比），顶部导航切换
+     - 支持一键保存当前图像（PNG 截图）
+     - 绘图：Canvas；公式：MathJax（离线自动降级为纯文本）
+     - 用法：保存为 .html 双击打开即可；投影仪大字号、柔和配色
+     ============================================================ -->
+
+<style>
+  /* ========== 全局：大字号、柔和配色，适配教室投影仪 ========== */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+    font-size: 20px;
+    background: #eef2f7;
+    color: #2d3748;
+    display: flex; flex-direction: column;
+  }
+
+  /* ========== 顶部标题栏 ========== */
+  header {
+    background: #ffffff;
+    padding: 10px 24px;
+    display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap;
+    box-shadow: 0 1px 4px rgba(30, 60, 120, .10);
+  }
+  header h1 { font-size: 29px; color: #1e3a8a; letter-spacing: 1px; }
+  header .sub { font-size: 17px; color: #64748b; }
+
+  /* ========== 模型导航（分类 + 模型按钮） ========== */
+  #nav {
+    background: #ffffff;
+    margin: 12px 16px 0;
+    border-radius: 14px;
+    padding: 10px 14px;
+    box-shadow: 0 2px 8px rgba(30, 60, 120, .08);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .catRow, .modelRow { display: flex; flex-wrap: wrap; gap: 8px; }
+  .catBtn {
+    font-size: 17px; color: #334155;
+    background: #f1f5f9; border: 2px solid #cbd5e1;
+    border-radius: 999px; padding: 5px 16px; cursor: pointer;
+  }
+  .catBtn.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .catBtn:hover { border-color: #2563eb; }
+  .modelBtn {
+    font-size: 19px; color: #334155;
+    background: #fff; border: 2px solid #cbd5e1;
+    border-radius: 10px; padding: 7px 18px; cursor: pointer;
+  }
+  .modelBtn.active { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: bold; }
+  .modelBtn:hover { border-color: #2563eb; }
+
+  /* ========== 中部：控制面板 + 绘图区 ========== */
+  main {
+    flex: 1; min-height: 0;
+    display: flex; gap: 16px;
+    padding: 12px 16px;
+  }
+
+  #panel {
+    width: 340px; flex: none;
+    background: #ffffff;
+    border-radius: 14px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(30, 60, 120, .08);
+    display: flex; flex-direction: column; gap: 12px;
+    overflow-y: auto;
+  }
+  .panel-title {
+    font-size: 22px; font-weight: bold; color: #1e3a8a;
+    padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;
+  }
+  .ctrl-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .ctrl-head label { font-size: 21px; font-weight: bold; color: #334155; }
+  .ctrl-head .val {
+    font-size: 27px; font-weight: bold; color: #2563eb;
+    min-width: 74px; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .ctrl-cap { font-size: 14px; color: #94a3b8; margin-top: 2px; }
+
+  /* 大号滑块（投影仪专用尺寸） */
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 12px;
+    border-radius: 6px;
+    background: #dbe3ee;
+    outline: none; cursor: pointer;
+    margin: 6px 0 2px;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #2563eb;
+    border: 3px solid #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .30);
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #2563eb;
+    border: 3px solid #ffffff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, .30);
+    cursor: pointer;
+  }
+
+  .chk {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 20px; color: #334155; cursor: pointer;
+  }
+  input[type="checkbox"] {
+    width: 27px; height: 27px;
+    accent-color: #2563eb; cursor: pointer;
+  }
+
+  #btnReset {
+    font-size: 22px; font-weight: bold;
+    color: #ffffff; background: #2563eb;
+    border: none; border-radius: 12px;
+    padding: 12px 0; cursor: pointer;
+    margin-top: 2px;
+  }
+  #btnReset:hover { background: #1d4ed8; }
+
+  /* 保存截图按钮（标题栏右侧常驻） */
+  #btnShot {
+    align-self: center; margin-left: auto;
+    font-size: 19px; font-weight: bold;
+    color: #1e3a8a; background: #e0e9f7;
+    border: 2px solid #b9cdf0; border-radius: 10px;
+    padding: 8px 18px; cursor: pointer;
+  }
+  #btnShot:hover { background: #d3e2f7; }
+
+  /* 下拉选择（3D 模型选几何体用） */
+  select {
+    font-size: 20px; padding: 8px 10px;
+    border: 2px solid #cbd5e1; border-radius: 10px;
+    background: #ffffff; color: #334155;
+    width: 100%; cursor: pointer; margin: 4px 0;
+  }
+
+  /* 函数表达式输入框（导数模型用） */
+  .exprInput {
+    font-size: 22px; padding: 8px 10px;
+    border: 2px solid #cbd5e1; border-radius: 10px;
+    background: #ffffff; color: #1e3a8a;
+    width: 100%; margin: 4px 0;
+    font-family: Consolas, "Courier New", monospace;
+    letter-spacing: 1px;
+  }
+  .exprInput:focus { outline: none; border-color: #2563eb; }
+
+  /* 多行函数输入框（多函数图像模型用） */
+  textarea.exprInput {
+    font-size: 20px; padding: 8px 10px;
+    border: 2px solid #cbd5e1; border-radius: 10px;
+    background: #ffffff; color: #1e3a8a;
+    width: 100%; margin: 4px 0; resize: vertical;
+    font-family: Consolas, "Courier New", monospace;
+    line-height: 1.6;
+  }
+  textarea.exprInput:focus { outline: none; border-color: #2563eb; }
+
+  .hint { font-size: 15px; color: #64748b; line-height: 1.6; }
+
+  #canvasWrap {
+    flex: 1; min-width: 0; position: relative;
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(30, 60, 120, .08);
+    overflow: hidden;
+  }
+  #plot { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  /* 画布右上角：视图控制按钮（放大/缩小/重置） */
+  #viewBtns {
+    position: absolute; top: 10px; right: 10px;
+    display: flex; gap: 8px; z-index: 2;
+  }
+  #viewBtns button {
+    font-size: 20px; font-weight: bold;
+    color: #1e3a8a; background: rgba(255, 255, 255, .92);
+    border: 2px solid #cbd5e1; border-radius: 10px;
+    padding: 6px 14px; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+  }
+  #viewBtns button:hover { background: #eef4ff; }
+  /* 画布右下角：操作提示 */
+  #opHint {
+    position: absolute; right: 14px; bottom: 12px;
+    font-size: 15px; color: #94a3b8;
+    pointer-events: none;
+  }
+  #canvasNote {
+    position: absolute; left: 14px; bottom: 12px;
+    max-width: 92%;
+    font-size: 18px; color: #1e3a8a;
+    background: rgba(255, 255, 255, .88);
+    padding: 7px 15px; border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+    line-height: 1.5;
+    pointer-events: none;
+  }
+
+  /* ========== 底部：数学公式显示区 ========== */
+  #formulaArea {
+    background: #ffffff;
+    margin: 0 16px 16px;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(30, 60, 120, .08);
+    overflow: hidden;   /* 配合折叠时裁剪内容 */
+  }
+  /* 折叠开关条（大尺寸，便于投影操作） */
+  .fa-toggle {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 20px; cursor: pointer; user-select: none;
+    font-size: 20px; font-weight: bold; color: #1e3a8a;
+  }
+  .fa-toggle:hover { background: #f1f5f9; }
+  .fa-arrow { font-size: 18px; color: #64748b; }
+  /* 公式内容主体：可收放（max-height 过渡，收起时归零） */
+  .fa-body {
+    display: flex; gap: 24px; align-items: stretch;
+    padding: 12px 20px 14px;
+    max-height: 420px; overflow: hidden;
+    transition: max-height .25s ease, padding .25s ease;
+  }
+  #formulaArea.collapsed .fa-body { max-height: 0; padding-top: 0; padding-bottom: 0; }
+  #formulaLeft {
+    flex: 1.5; min-width: 0;
+    display: flex; flex-direction: column; justify-content: center; gap: 8px;
+  }
+  #formulaLeft .m { font-size: 20px; color: #1e3a8a; min-height: 32px; }
+  #formulaLeft .note { font-size: 18px; color: #b45309; min-height: 26px; }
+  #valueTable { flex: 1; min-width: 0; border-collapse: collapse; align-self: center; width: 100%; }
+  #valueTable td { font-size: 18px; padding: 4px 14px; border-bottom: 1px solid #edf1f7; }
+  #valueTable td.k { color: #475569; white-space: nowrap; }
+  #valueTable td.v { color: #1e3a8a; font-weight: bold; text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+
+<!-- MathJax 配置：必须在加载脚本之前设置 -->
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['\\(', '\\)'], ['$', '$']],
+      displayMath: [['\\[', '\\]'], ['$$', '$$']]
+    },
+    chtml: { scale: 1.1 }
+  };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+
+<body>
+
+<!-- ================= 顶部标题 ================= -->
+<header>
+  <h1>高中数学 · 动态数学模型</h1>
+  <span class="sub">林伊 2024109150</span>
+  <button id="btnShot" title="把当前绘图区保存为 PNG 图片">保存截图</button>
+</header>
+
+<!-- ================= 模型导航 ================= -->
+<nav id="nav">
+  <div class="catRow" id="catRow"></div>
+  <div class="modelRow" id="modelRow"></div>
+</nav>
+
+<!-- ================= 中部：控制面板 + 绘图区 ================= -->
+<main>
+  <!-- ① 参数控制面板（内容由 JS 按当前模型动态生成） -->
+  <aside id="panel"></aside>
+
+  <!-- ② 可视化绘图区 -->
+  <section id="canvasWrap">
+    <canvas id="plot"></canvas>
+    <!-- 视图控制（缩放/重置/坐标系开关），浮于画布右上角 -->
+    <div id="viewBtns">
+      <button id="btnZoomIn" title="放大">＋</button>
+      <button id="btnZoomOut" title="缩小">−</button>
+      <button id="btnResetView" title="恢复默认视图">重置视图</button>
+      <button id="btnCoord" title="显示/隐藏坐标轴与网格（方便看图）">隐藏坐标系</button>
+    </div>
+    <div id="opHint">滚轮缩放 · 拖拽平移</div>
+    <div id="canvasNote">提示：拖动左侧滑块，观察图像与公式实时变化</div>
+  </section>
+</main>
+
+<!-- ================= 底部：数学公式显示区（可收放） ================= -->
+<footer id="formulaArea">
+  <!-- 折叠开关条：点击展开/收起公式区，给绘图区让出空间 -->
+  <div class="fa-toggle" id="faToggle" title="点击展开 / 收起公式区">
+    <span class="fa-title">数学公式显示区（点击收放）</span>
+    <span class="fa-arrow" id="faArrow">▼</span>
+  </div>
+  <div class="fa-body" id="faBody">
+    <div id="formulaLeft">
+      <div class="m" id="fEq"></div>
+      <div class="m" id="fC"></div>
+      <div class="m" id="fE"></div>
+      <div class="note" id="fNote"></div>
+    </div>
+    <table id="valueTable">
+      <tbody id="vtBody"></tbody>
+    </table>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================================================================
+     ① 全局状态
+     ================================================================ */
+  var gridOn = true;                 // 是否显示网格（全局开关）
+  var currentId = 'ellipse';         // 当前模型 id
+  var states = {};                   // 各模型参数状态：states[模型id] = {参数...}
+  var DEMO_SPEED = (2 * Math.PI) / 28;  // 椭圆演示点 P 的角速度（约 28 秒一圈）
+  var DEFAULT_NOTE = '提示：拖动左侧滑块，观察图像与公式实时变化';
+  // 用户视图变换（叠加在模型默认取景之上）：缩放倍数 + 平移像素
+  var viewZoom = 1, viewPanX = 0, viewPanY = 0;
+  var showCoord = true;   // 坐标系（坐标轴+网格）显示开关：看图时可隐藏
+
+  /* ================================================================
+     ② DOM 引用
+     ================================================================ */
+  var canvas = document.getElementById('plot');
+  var ctx = canvas.getContext('2d');
+  var wrap = document.getElementById('canvasWrap');
+  var panel = document.getElementById('panel');
+  var noteEl = document.getElementById('canvasNote');
+  var fEq = document.getElementById('fEq');
+  var fC = document.getElementById('fC');
+  var fE = document.getElementById('fE');
+  var fNote = document.getElementById('fNote');
+  var vtBody = document.getElementById('vtBody');
+
+  /* ================================================================
+     ③ 通用工具
+     ================================================================ */
+  function fmt(x) { return String(parseFloat(x.toFixed(2))); }   // 去掉尾零
+  function fmt2(x) { return x.toFixed(2); }
+  function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
+
+  /* ---- 自定义函数：把用户输入表达式编译为可执行函数（模型计算入口） ----
+     支持：x、^（乘方）、+ - * / 括号、sin cos tan ln lg sqrt abs exp、pi、e
+     注意：乘法必须写 *（如 2*x），函数名后必须带括号（如 sin(x)） */
+  /** 把用户输入表达式转换成 JS 源码（替换函数名/常量/^ 等） */
+  function exprSrc(expr) {
+    return String(expr || '')
+      // 函数名统一替换（单次 replace 回调：避免插入的 Math.sin( 等被后续步骤二次替换）
+      .replace(/\b(asin|acos|atan|sin|cos|tan|ln|lg|log|sqrt|abs|exp)\(/g, function (m, name) {
+        if (name === 'lg') return 'Math.log10(';
+        if (name === 'ln' || name === 'log') return 'Math.log(';
+        return 'Math.' + name + '(';
+      })
+      .replace(/\bpi\b/g, 'Math.PI')
+      .replace(/\be\b/g, 'Math.E')
+      .replace(/\^/g, '**')
+      .replace(/\(-/g, '(0-')   // JS 语法：一元负号不能直接放在 ** 左侧（如 e^(-x^2)）
+      .replace(/^-/, '0-');     // 表达式以负号开头（如 -x^2）
+  }
+
+  /** 编译单变量函数 f(x)（导数模型用） */
+  function compileFn(expr) {
+    try {
+      var src = exprSrc(expr);
+      if (!src) throw new Error('empty');
+      var f = new Function('x', 'return (' + src + ');');
+      var t = f(1);
+      if (typeof t !== 'number' || !isFinite(t)) throw new Error('bad');
+      return { fn: f, err: '' };
+    } catch (err) {
+      return { fn: null, err: '表达式有误' };
+    }
+  }
+
+  /** 编译双变量函数 F(x,y)（自定义函数/方程模型用） */
+  function compileFnXY(expr) {
+    try {
+      var src = exprSrc(expr);
+      if (!src) throw new Error('empty');
+      var f = new Function('x', 'y', 'return (' + src + ');');
+      var t = f(1, 0);
+      if (typeof t !== 'number' || !isFinite(t)) throw new Error('bad');
+      return { fn: f, err: '' };
+    } catch (err) {
+      return { fn: null, err: '表达式有误' };
+    }
+  }
+
+  /** 自定义函数/方程编译入口：显式 y=f(x) 或隐式 F(x,y)=0（含 = 或含变量 y） */
+  function compileExpr2(expr) {
+    var s = String(expr || '').trim();
+    if (!s) return { fn: null, err: '请输入表达式', implicit: false };
+    var hasEq = s.indexOf('=') >= 0;
+    var body = s;
+    if (hasEq) {
+      var parts = s.split('=');
+      if (parts.length !== 2) return { fn: null, err: '等号只能出现一次', implicit: true };
+      body = '(' + parts[0] + ')-(' + parts[1] + ')';   // F(x,y) = 左 − 右 = 0
+    }
+    var implicit = hasEq || /\by\b/.test(body);
+    var r = compileFnXY(body);
+    if (r.err) return { fn: null, err: r.err, implicit: implicit };
+    return { fn: r.fn, err: '', implicit: implicit };
+  }
+
+  /** 数值求导（中心差分）：f′(x) ≈ [f(x+h) − f(x−h)] / (2h)，对任意输入函数有效 */
+  function numDeriv(f, x) {
+    var h = 1e-5 * (Math.abs(x) + 1);
+    return (f(x + h) - f(x - h)) / (2 * h);
+  }
+
+  /** 把用户输入的表达式转成可安全显示的 LaTeX（用于公式区） */
+  function fnToLatex(expr) {
+    var s = String(expr || '').replace(/[\\{}#$&_~%]/g, '\\$&');
+    s = s.replace(/\b(asin|acos|atan|sin|cos|tan|ln|lg|sqrt|abs|exp)\(/g, '\\$1(');
+    s = s.replace(/\bpi\b/g, '\\pi ');
+    s = s.replace(/\be\b/g, '\\mathrm{e}');
+    // 统一处理 ^（单次 replace 回调：避免插入的 ^{...} 被再次扫描替换）
+    s = s.replace(/\^\(([^)]*)\)|(\^-?\d+(?:\.\d+)?)|(\^[A-Za-z]+)|(\^)/g, function (m, g1, g2, g3) {
+      if (g1 !== undefined) return '^{' + g1 + '}';
+      if (g2 !== undefined) return '^{' + g2.slice(1) + '}';
+      if (g3 !== undefined) return '^{' + g3.slice(1) + '}';
+      return '\\char94 ';
+    });
+    s = s.replace(/\*/g, '\\cdot ');
+    return s;
+  }
+
+  /* ================================================================
+     ③+ 自定义函数/方程模型的绘制与公式（基本函数/三角函数/圆锥曲线共用）
+     ================================================================ */
+
+  /** 隐式曲线绘制：marching squares（网格采样 F(x,y)，线性插值画等值线 F=0）
+      color：曲线颜色（默认蓝色；多函数模型可传其它颜色与显式函数区分） */
+  function drawImplicit(F, r, color) {
+    var N = 110, step = 2 * r / N;
+    // 预计算网格值，避免重复求值
+    var vals = [];
+    for (var j = 0; j <= N; j++) {
+      vals[j] = [];
+      var yy = -r + j * step;
+      for (var i = 0; i <= N; i++) {
+        var v = F(-r + i * step, yy);
+        vals[j][i] = isFinite(v) ? v : NaN;
+      }
+    }
+    ctx.strokeStyle = color || '#2563eb'; ctx.lineWidth = 3; ctx.setLineDash([]);
+    function drawSeg(a, b) {
+      ctx.beginPath();
+      ctx.moveTo(H.X(a.x), H.Y(a.y));
+      ctx.lineTo(H.X(b.x), H.Y(b.y));
+      ctx.stroke();
+    }
+    // 遍历每个网格单元：四角异号 → 在边上线性插值找零点，连成线段
+    for (j = 0; j < N; j++) {
+      for (i = 0; i < N; i++) {
+        var v00 = vals[j][i], v10 = vals[j][i + 1], v01 = vals[j + 1][i], v11 = vals[j + 1][i + 1];
+        if (isNaN(v00) || isNaN(v10) || isNaN(v01) || isNaN(v11)) continue;
+        var x0 = -r + i * step, y0 = -r + j * step;
+        var pts = [];
+        if (v00 * v10 < 0) pts.push({ x: x0 + step * v00 / (v00 - v10), y: y0 });        // 底边（两端 v00/v10）
+        if (v10 * v11 < 0) pts.push({ x: x0 + step, y: y0 + step * v10 / (v10 - v11) }); // 右边（两端 v10/v11）
+        if (v11 * v01 < 0) pts.push({ x: x0 + step * v01 / (v01 - v11), y: y0 + step }); // 顶边（两端 v01/v11）
+        if (v01 * v00 < 0) pts.push({ x: x0, y: y0 + step * v00 / (v00 - v01) });        // 左边（两端 v00/v01）
+        if (pts.length < 2) continue;
+        if (pts.length === 4) {
+          // 鞍形歧义（曲线在单元内有两支）：用中心值判断正确配对，避免假线段
+          var vC = F(x0 + step / 2, y0 + step / 2);
+          if (isFinite(vC)) {
+            if ((vC >= 0) === (v00 >= 0)) {
+              drawSeg(pts[0], pts[1]);   // 底-右
+              drawSeg(pts[2], pts[3]);   // 顶-左
+            } else {
+              drawSeg(pts[0], pts[3]);   // 底-左
+              drawSeg(pts[1], pts[2]);   // 右-顶
+            }
+            continue;
+          }
+        }
+        // 2 或 3 个零点：按边顺序连成折线（3 零点表示曲线在单元内拐弯，需连三段不丢线）
+        ctx.beginPath();
+        ctx.moveTo(H.X(pts[0].x), H.Y(pts[0].y));
+        for (var k = 1; k < pts.length; k++) ctx.lineTo(H.X(pts[k].x), H.Y(pts[k].y));
+        ctx.stroke();
+      }
+    }
+  }
+
+  /** 自定义函数/方程模型的绘制入口（显式用 plot，隐式用等值线） */
+  function drawCustomFn(S, errText) {
+    var r = S.r;
+    H.setViewRect(-r, r, -r, r); H.grid(); H.axes();
+    if (!S.fn) {
+      H.text(0, 0, errText || '请输入正确的表达式（按回车确认）', { color: '#dc2626', size: 18, bold: true });
+      return;
+    }
+    if (S.implicit) {
+      drawImplicit(S.fn, r);
+    } else {
+      H.plot(function (x) { return S.fn(x, 0); }, '#2563eb', 3.5);
+    }
+  }
+
+  /** 自定义函数/方程模型的公式区渲染 */
+  function formulasCustom(S, examples) {
+    if (!S.fn) {
+      fEq.textContent = '表达式有误，请修改后按回车确认';
+      fC.innerHTML = ''; fE.innerHTML = '';
+      fNote.textContent = '支持：x、y、^、+、−、*、/、sin()、cos()、tan()、ln()、lg()、sqrt()、abs()、pi、e；乘法写 *；隐式方程用 =（如 x^2+y^2=4）';
+      setTable([['当前输入', S.expr], ['示例', examples.join('、')]]);
+      return;
+    }
+    var r = S.r;
+    if (S.implicit) {
+      setMath(fEq, fnToLatex(S.expr), S.expr);
+      setMath(fC, '\\text{隐式方程：}F(x,y)=0\\text{，绘制等值线}', '隐式方程 F(x,y) = 0，绘制等值线');
+    } else {
+      setMath(fEq, 'y=' + fnToLatex(S.expr), 'y = ' + S.expr);
+      setMath(fC, '\\text{显式函数：}y=f(x)', '显式函数：y = f(x)');
+    }
+    setMath(fE, '\\text{视野：}x,y\\in[-' + fmt(r) + ',' + fmt(r) + ']', '视野：x, y ∈ [−' + fmt(r) + ', ' + fmt(r) + ']');
+    fNote.textContent = S.implicit
+      ? '等值线法：在网格上找 F(x,y)=0 的点连线；可调「视野 ±r」或用滚轮缩放观察'
+      : '曲线超出视野部分自动裁剪；可调「视野 ±r」或用滚轮缩放观察';
+    setTable([
+      ['表达式', S.expr],
+      ['类型', S.implicit ? '隐式方程 F(x,y)=0' : '显式函数 y=f(x)'],
+      ['视野', 'x, y ∈ [−' + fmt(r) + ', ' + fmt(r) + ']']
+    ]);
+  }
+
+  /* ---- 函数模型的「可选自定义函数」支持（一次/二次/反比例/幂/指数/对数/三角等共用）---- */
+
+  /** 编译可选自定义函数：expr 留空则 fn=null（用滑块参数），非空则编译用户函数 */
+  function compileCustomExpr(st) {
+    if (st.expr && String(st.expr).trim()) {
+      var res = compileFn(st.expr);
+      st.fn = res.fn; st.err = res.err;
+    } else {
+      st.fn = null; st.err = '';
+    }
+  }
+
+  /** 绘制用户输入函数 y=f(x)：自适应纵轴（采样钳制 ±10、最小高度），followX0 时视野跟随切点 */
+  function drawUserFnGraph(S, followX0) {
+    var f = S.fn;
+    var hx = 6;
+    if (followX0 && isFinite(S.x0)) hx = Math.max(6, Math.abs(S.x0) + 1.5);
+    var ymin = Infinity, ymax = -Infinity;
+    for (var i = 0; i <= 200; i++) {
+      var x = -hx + i * 2 * hx / 200, y = f(x);
+      if (isFinite(y)) {
+        if (y < -10) y = -10; else if (y > 10) y = 10;   // 钳制极端值
+        if (y < ymin) ymin = y;
+        if (y > ymax) ymax = y;
+      }
+    }
+    if (!isFinite(ymin)) { ymin = -3; ymax = 3; }
+    if (ymax - ymin < 6) { var mid = (ymax + ymin) / 2; ymin = mid - 3; ymax = mid + 3; }
+    var pad = (ymax - ymin) * 0.15; ymin -= pad; ymax += pad;
+    H.setViewRect(-hx, hx, ymin, ymax); H.grid(); H.axes();
+    H.plot(f, '#2563eb', 3.5);
+  }
+
+  /** 函数模型的「自定义函数模式」公式区：显示 y=f(x) */
+  function formulasUserFn(S) {
+    setMath(fEq, 'y=' + fnToLatex(S.expr), 'y = ' + S.expr);
+    setMath(fC, '\\text{用户自定义函数：}y=f(x)', '用户自定义函数：y = f(x)');
+    setMath(fE, '\\text{视野自动适应，可用滚轮缩放/拖拽平移}', '视野自动适应，可用滚轮缩放/拖拽平移');
+    fNote.textContent = '当前显示用户输入的函数图像；清空输入框回车可恢复滑块参数模型';
+    setTable([
+      ['表达式', S.expr],
+      ['类型', '用户自定义函数 y=f(x)'],
+      ['提示', '清空输入框回车可恢复默认模型']
+    ]);
+  }
+
+  /* ---- 多函数图像模型：一次输入多个函数，同屏对比 ---- */
+  var MULTI_COLORS = ['#2563eb', '#d97706', '#0f766e', '#dc2626', '#7c3aed', '#0891b2', '#65a30d', '#db2777'];
+
+  /** 编译多个函数：按换行/分号拆分，每段编译为一个 {expr, fn, err}；另支持一个可选隐式方程 F(x,y)=0 */
+  function compileMultiFn(st) {
+    var parts = String(st.expr || '').split(/[;\n]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    st.fns = [];
+    st.err = '';
+    if (parts.length === 0) {
+      st.err = '请输入至少一个函数';
+    } else {
+      if (parts.length > 8) { parts = parts.slice(0, 8); st.err = '最多显示 8 个函数，已截取前 8 个'; }
+      parts.forEach(function (p) {
+        var res = compileFn(p);
+        st.fns.push({ expr: p, fn: res.fn, err: res.err });
+      });
+    }
+    // 可选隐式方程 F(x,y)=0（用等值线法绘制，可与上方显式函数同屏）
+    st.impFn = null; st.impErr = '';
+    var impStr = String(st.imp || '').trim();
+    if (impStr) {
+      var res2 = compileExpr2(impStr);
+      if (res2.fn) st.impFn = res2.fn;
+      else st.impErr = res2.err || '表达式有误';
+    }
+  }
+
+  /* ---- 多项式字符串（二次函数等使用）---- */
+  function termLatex(coef, varStr, expStr, first) {
+    if (coef === 0) return '';
+    var s = first ? (coef < 0 ? '-' : '') : (coef < 0 ? ' - ' : ' + ');
+    var abs = Math.abs(coef);
+    if (abs !== 1) s += fmt(abs);
+    return s + varStr + expStr;
+  }
+  function buildPolyLatex(a, b, c) {
+    return termLatex(a, 'x', '^{2}', true) + termLatex(b, 'x', '', false) + termLatex(c, '', '', false);
+  }
+  function buildPolyPlain(a, b, c) {
+    return termLatex(a, 'x', '²', true) + termLatex(b, 'x', '', false) + termLatex(c, '', '', false);
+  }
+
+  /* ---- 幂的写法（指数/对数/幂函数）---- */
+  function powLatex(base, n) {
+    if (n === 1) return String(base);
+    if (n === 0) return '1';
+    return base + '^{' + (typeof n === 'number' ? fmt(n) : n) + '}';
+  }
+  function powPlain(base, n) {
+    if (n === 1) return String(base);
+    if (n === 0) return '1';
+    var s = typeof n === 'number' ? fmt(n) : String(n);   // n 可能是字符串（如 'x'）
+    var sup = { '2': '²', '3': '³', '-1': '⁻¹', '-2': '⁻²', '-3': '⁻³', '0.5': '^0.5' };
+    return base + (sup[s] || ('^' + s));
+  }
+  function powXLatex(n) {   // xⁿ 的写法
+    if (n === 1) return 'x';
+    if (n === 0) return '1';
+    return 'x^{' + fmt(n) + '}';
+  }
+  function powXPlain(n) {
+    if (n === 1) return 'x';
+    if (n === 0) return '1';
+    var sup = { '2': 'x²', '3': 'x³', '4': 'x⁴', '-1': 'x⁻¹', '-2': 'x⁻²', '-3': 'x⁻³' };
+    return sup[fmt(n)] || ('x^' + fmt(n));
+  }
+
+  /* ---- 三角函数式子的写法 ---- */
+  function buildTrigLatex(kind, A, w, phi, B) {
+    var s = 'y=';
+    if (A !== 1) s += fmt(A);
+    s += '\\' + kind + '(';
+    if (w !== 1) s += fmt(w);
+    s += 'x';
+    if (phi > 0) s += '+' + fmt(phi); else if (phi < 0) s += '-' + fmt(-phi);
+    s += ')';
+    if (B > 0) s += '+' + fmt(B); else if (B < 0) s += '-' + fmt(-B);
+    return s;
+  }
+  function buildTrigPlain(kind, A, w, phi, B) {
+    var s = 'y=';
+    if (A !== 1) s += fmt(A);
+    s += kind + '(';
+    if (w !== 1) s += fmt(w);
+    s += 'x';
+    if (phi > 0) s += '+' + fmt(phi); else if (phi < 0) s += '-' + fmt(-phi);
+    s += ')';
+    if (B > 0) s += '+' + fmt(B); else if (B < 0) s += '-' + fmt(-B);
+    return s;
+  }
+
+  /* ================================================================
+     ④ 公式渲染工具（MathJax；离线自动降级为纯文本）
+     ================================================================ */
+  var mathReady = false;
+  var typeTimer = null;
+
+  function setMath(el, latex, plain) {
+    if (mathReady) el.innerHTML = '\\(' + latex + '\\)';
+    else el.textContent = plain;
+  }
+  function setTable(rows) {
+    vtBody.innerHTML = rows.map(function (r) {
+      return '<tr><td class="k">' + r[0] + '</td><td class="v">' + r[1] + '</td></tr>';
+    }).join('');
+  }
+  function typeset() {
+    if (!mathReady) return;
+    clearTimeout(typeTimer);
+    typeTimer = setTimeout(function () {
+      MathJax.typesetPromise([document.getElementById('formulaArea')]).catch(function () {});
+    }, 120);
+  }
+
+  /* ================================================================
+     ⑤ 绘图助手 H（所有模型共用）
+     ----------------------------------------------------------------
+     - 每个模型的 draw(S) 先调用 H.setView 或 H.setViewRect 设定可视范围，
+       再用 H.grid / H.axes / H.plot / H.line / H.dot / H.text 等绘制。
+     ================================================================ */
+  var H = {
+    V: null,
+
+    /** 以世界宽度 worldW、最小世界高度 worldHMin 设定可视范围（居中，x/y 比例一致） */
+    setView: function (worldW, worldHMin) {
+      var W = canvas.width, Hh = canvas.height;
+      var viewH = Math.max(worldW * (Hh / W), worldHMin);
+      var viewW = W * viewH / Hh;
+      this.baseV = { ox: W / 2, oy: Hh / 2, scale: W / viewW };
+      this.applyTransform(W, Hh);
+    },
+
+    /** 以指定世界矩形设定可视范围（自适应，用于数列等需自适应纵轴的模型） */
+    setViewRect: function (xmin, xmax, ymin, ymax) {
+      var W = canvas.width, Hh = canvas.height;
+      var s = Math.min(W / (xmax - xmin), Hh / (ymax - ymin));
+      var viewW = W / s, viewH = Hh / s;
+      var cx = (xmin + xmax) / 2, cy = (ymin + ymax) / 2;
+      this.baseV = { ox: W / 2, oy: Hh / 2, scale: s };
+      this.applyTransform(W, Hh);
+    },
+
+    /** 在模型默认取景（baseV）上叠加用户缩放/平移，得到实际视口 V */
+    applyTransform: function (W, Hh) {
+      var b = this.baseV;
+      var scale = b.scale * viewZoom;
+      var ox = b.ox + viewPanX, oy = b.oy + viewPanY;
+      this.V = {
+        ox: ox, oy: oy, scale: scale,
+        xmin: (0 - ox) / scale,
+        xmax: (W - ox) / scale,
+        ymin: (oy - Hh) / scale,
+        ymax: oy / scale
+      };
+    },
+
+    X: function (wx) { return this.V.ox + wx * this.V.scale; },
+    Y: function (wy) { return this.V.oy - wy * this.V.scale; },
+
+    /** 浅色网格（由全局开关 gridOn 与 showCoord 共同控制） */
+    grid: function () {
+      if (!gridOn || !showCoord) return;
+      var V = this.V;
+      ctx.lineWidth = 1; ctx.strokeStyle = '#e3e8f0'; ctx.beginPath();
+      for (var gx = Math.ceil(V.xmin); gx <= Math.floor(V.xmax); gx++) {
+        var x = this.X(gx); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+      }
+      for (var gy = Math.ceil(V.ymin); gy <= Math.floor(V.ymax); gy++) {
+        var y = this.Y(gy); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+      }
+      ctx.stroke();
+    },
+
+    /** 坐标轴 + 刻度数字 + 箭头 + 原点（由 showCoord 开关控制） */
+    axes: function () {
+      if (!showCoord) return;
+      var V = this.V;
+      var xcount = Math.floor(V.xmax) - Math.ceil(V.xmin);
+      var ycount = Math.floor(V.ymax) - Math.ceil(V.ymin);
+      var xstep = xcount > 24 ? Math.ceil(xcount / 24) : 1;
+      var ystep = ycount > 24 ? Math.ceil(ycount / 24) : 1;
+
+      // x 轴与箭头
+      this.line(V.xmin, 0, V.xmax, 0, '#334155', 2);
+      ctx.fillStyle = '#334155';
+      var ax = this.X(V.xmax), ay = this.Y(0);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax - 11, ay - 6); ctx.lineTo(ax - 11, ay + 6); ctx.closePath(); ctx.fill();
+      // y 轴与箭头
+      this.line(0, V.ymin, 0, V.ymax, '#334155', 2);
+      var bx = this.X(0), by = this.Y(V.ymax);
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx - 6, by + 11); ctx.lineTo(bx + 6, by + 11); ctx.closePath(); ctx.fill();
+
+      // 刻度数字（数量多时自动跳步）
+      ctx.font = '14px "Microsoft YaHei", sans-serif';
+      ctx.fillStyle = '#64748b';
+      for (var i = Math.ceil(V.xmin); i <= Math.floor(V.xmax); i += xstep) {
+        if (i === 0) continue;
+        var lx = this.X(i), ly = this.Y(0);
+        ctx.beginPath(); ctx.moveTo(lx, ly - 5); ctx.lineTo(lx, ly + 5);
+        ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillText(axisLabel(i), lx, ly + 15);
+      }
+      for (i = Math.ceil(V.ymin); i <= Math.floor(V.ymax); i += ystep) {
+        if (i === 0) continue;
+        var my = this.Y(i), mx = this.X(0);
+        ctx.beginPath(); ctx.moveTo(mx - 5, my); ctx.lineTo(mx + 5, my);
+        ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillText(axisLabel(i), mx - 7, my + 5);
+      }
+      // 轴字母与原点
+      ctx.fillStyle = '#334155';
+      ctx.fillText('x', this.X(V.xmax) - 14, this.Y(0) + 18);
+      ctx.fillText('y', this.X(0) + 12, this.Y(V.ymax) - 4);
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('O', this.X(0) + 8, this.Y(0) + 16);
+    },
+
+    line: function (x1, y1, x2, y2, color, width, dash) {
+      ctx.strokeStyle = color; ctx.lineWidth = width;
+      ctx.setLineDash(dash || []);
+      ctx.beginPath();
+      ctx.moveTo(this.X(x1), this.Y(y1));
+      ctx.lineTo(this.X(x2), this.Y(y2));
+      ctx.stroke();
+      ctx.setLineDash([]);
+    },
+
+    dot: function (x, y, r, fill, label, dx, dy, lcolor, lsize, bold) {
+      var px = this.X(x), py = this.Y(y);
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fillStyle = fill; ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+      if (label) {
+        ctx.font = (bold ? 'bold ' : '') + (lsize || 16) + 'px "Microsoft YaHei", sans-serif';
+        ctx.fillStyle = lcolor || '#334155';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(label, this.X(x + (dx || 0)), this.Y(y + (dy || 0)));
+      }
+    },
+
+    text: function (x, y, str, opt) {
+      opt = opt || {};
+      ctx.font = (opt.bold ? 'bold ' : '') + (opt.size || 17) + 'px "Microsoft YaHei", sans-serif';
+      ctx.fillStyle = opt.color || '#334155';
+      ctx.textAlign = opt.align || 'center';
+      ctx.textBaseline = opt.base || 'middle';
+      ctx.fillText(str, this.X(x), this.Y(y));
+    },
+
+    /** 绘制函数 y=f(x)：遇到断点（无定义/跳跃）自动断开，适合反比例、正切等 */
+    plot: function (f, color, width, steps, jump) {
+      var V = this.V, n = steps || 400, st = (V.xmax - V.xmin) / n;
+      ctx.strokeStyle = color; ctx.lineWidth = width || 3; ctx.setLineDash([]);
+      ctx.beginPath();
+      var started = false, prev = null;
+      for (var i = 0; i <= n; i++) {
+        var x = V.xmin + i * st, y = f(x);
+        if (y === null || !isFinite(y)) { started = false; prev = null; continue; }
+        if (started && prev !== null && Math.abs(y - prev) > (jump || 30)) started = false;
+        var px = this.X(x), py = this.Y(y);
+        if (started) ctx.lineTo(px, py); else { ctx.moveTo(px, py); started = true; }
+        prev = y;
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    },
+
+    /** 参数曲线：fn(t) → {x, y}，t ∈ [t0, t1] */
+    plotParam: function (fn, t0, t1, color, width, steps) {
+      var n = steps || 300;
+      ctx.strokeStyle = color; ctx.lineWidth = width || 3; ctx.setLineDash([]);
+      ctx.beginPath();
+      for (var i = 0; i <= n; i++) {
+        var t = t0 + (t1 - t0) * i / n, p = fn(t);
+        if (!p || !isFinite(p.x) || !isFinite(p.y)) continue;
+        if (i === 0) ctx.moveTo(this.X(p.x), this.Y(p.y)); else ctx.lineTo(this.X(p.x), this.Y(p.y));
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    },
+
+    /** 折线：pts = [{x,y}, ...] */
+    poly: function (pts, color, width, dash) {
+      ctx.strokeStyle = color; ctx.lineWidth = width || 2.5;
+      ctx.setLineDash(dash || []);
+      ctx.beginPath();
+      for (var i = 0; i < pts.length; i++) {
+        var p = pts[i];
+        if (i === 0) ctx.moveTo(this.X(p.x), this.Y(p.y)); else ctx.lineTo(this.X(p.x), this.Y(p.y));
+      }
+      ctx.stroke(); ctx.setLineDash([]);
+    },
+
+    /** 填充 y=f(x) 在 [x0, x1] 与 x 轴之间的区域（正态分布区间用） */
+    fillUnder: function (f, x0, x1, color) {
+      var V = this.V;
+      var start = Math.max(x0, V.xmin), end = Math.min(x1, V.xmax);
+      if (end <= start) return;
+      var n = 80;
+      ctx.beginPath();
+      ctx.moveTo(this.X(start), this.Y(0));
+      for (var i = 0; i <= n; i++) {
+        var x = start + (end - start) * i / n;
+        ctx.lineTo(this.X(x), this.Y(f(x)));
+      }
+      ctx.lineTo(this.X(end), this.Y(0));
+      ctx.closePath();
+      ctx.fillStyle = color; ctx.fill();
+    }
+  };
+
+  function axisLabel(v) {
+    if (Math.abs(v) >= 100) return String(Math.round(v));
+    if (Math.abs(v) >= 10) return fmt(v);
+    return String(v);
+  }
+
+  /* ================================================================
+     ⑤+ 3D 立体几何：几何体线框数据生成
+     ----------------------------------------------------------------
+     shapeData(shape) 返回 {edges:[[p1,p2],...], faces:[[p1..p4],...]}
+     p = [x, y, z]（世界坐标，观察者在 +z 方向看向原点）
+     ================================================================ */
+  function shapeData(shape) {
+    var edges = [], faces = [], i;
+    if (shape === 'cuboid' || shape === 'cube') {
+      var a = shape === 'cube' ? 1.2 : 2;      // 正方体棱长 1.2，长方体 2×1.4×1.4
+      var b = shape === 'cube' ? 1.2 : 1.4;
+      var c = shape === 'cube' ? 1.2 : 1.4;
+      var hx = a / 2, hy = b / 2, hz = c / 2;
+      var v = [
+        [-hx, -hy, -hz], [hx, -hy, -hz], [hx, hy, -hz], [-hx, hy, -hz],
+        [-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz]
+      ];
+      var ei = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+      ei.forEach(function (e) { edges.push([v[e[0]], v[e[1]]]); });
+      // 六个面（外法向一致，供背面剔除与半透明填充）
+      [[0, 3, 2, 1], [4, 5, 6, 7], [0, 4, 7, 3], [1, 2, 6, 5], [3, 7, 6, 2], [0, 1, 5, 4]].forEach(function (f) {
+        faces.push(f.map(function (i) { return v[i]; }));
+      });
+    } else if (shape === 'cylinder' || shape === 'cone') {
+      var r = 1, h = 1.6, n2 = 32;   // 32 段圆环，保证轮廓圆滑
+      var top = [], bot = [];
+      for (i = 0; i < n2; i++) {
+        var t = i / n2 * 2 * Math.PI;
+        top.push([r * Math.cos(t), h / 2, r * Math.sin(t)]);
+        bot.push([r * Math.cos(t), -h / 2, r * Math.sin(t)]);
+      }
+      if (shape === 'cylinder') {
+        for (i = 0; i < n2; i++) {
+          edges.push([top[i], top[(i + 1) % n2]]);
+          edges.push([bot[i], bot[(i + 1) % n2]]);
+          if (i % 2 === 0) edges.push([top[i], bot[i]]);   // 竖棱（隔一条画）
+        }
+      } else {
+        for (i = 0; i < n2; i++) {
+          edges.push([bot[i], bot[(i + 1) % n2]]);
+          if (i % 2 === 0) edges.push([[0, h / 2, 0], bot[i]]);   // 母线（隔一条画）
+        }
+      }
+    } else if (shape === 'sphere') {
+      var r2 = 1.1, MER = 16, PAR = 8, N = 48;   // 16 经线 × 48 段/圈，球面更圆滑
+      for (var k = 0; k < MER; k++) {          // 经线（绕 y 轴）
+        var al = k / MER * Math.PI, ring = [];
+        for (i = 0; i < N; i++) {
+          var t2 = i / N * 2 * Math.PI;
+          ring.push([r2 * Math.cos(t2) * Math.cos(al), r2 * Math.sin(t2), r2 * Math.cos(t2) * Math.sin(al)]);
+        }
+        for (i = 0; i < N; i++) edges.push([ring[i], ring[(i + 1) % N]]);
+      }
+      for (var j = 1; j <= PAR; j++) {         // 纬线
+        var phi = j / (PAR + 1) * Math.PI, ring2 = [];
+        for (i = 0; i < N; i++) {
+          var t3 = i / N * 2 * Math.PI;
+          ring2.push([r2 * Math.sin(phi) * Math.cos(t3), r2 * Math.cos(phi), r2 * Math.sin(phi) * Math.sin(t3)]);
+        }
+        for (i = 0; i < N; i++) edges.push([ring2[i], ring2[(i + 1) % N]]);
+      }
+    } else if (shape === 'triPrism') {
+      // 正三棱柱：底面正三角形边长 a=1.6，高 h=1.6（顶点按外法向顺序，供面填充）
+      var a6 = 1.6, h6 = 1.6, rTri = a6 / Math.sqrt(3);
+      var A0 = [-a6 / 2, -h6 / 2, rTri / 2], A1 = [a6 / 2, -h6 / 2, rTri / 2], A2 = [0, -h6 / 2, -rTri];
+      var B0 = [-a6 / 2, h6 / 2, rTri / 2], B1 = [a6 / 2, h6 / 2, rTri / 2], B2 = [0, h6 / 2, -rTri];
+      var vp = [A0, A1, A2, B0, B1, B2];
+      var ep = [[0, 1], [1, 2], [2, 0], [3, 4], [4, 5], [5, 3], [0, 3], [1, 4], [2, 5]];
+      ep.forEach(function (e) { edges.push([vp[e[0]], vp[e[1]]]); });
+      faces.push([A0, A2, A1]);            // 下底面
+      faces.push([B0, B1, B2]);            // 上底面
+      faces.push([A0, A1, B1, B0]);        // 三个矩形侧面
+      faces.push([A1, A2, B2, B1]);
+      faces.push([A2, A0, B0, B2]);
+    } else if (shape === 'pyramidFrustum') {
+      // 正四棱台：下底边长 1.6、上底边长 0.8、高 1.4
+      var s1 = 0.8, s2 = 0.4, hf = 0.7;
+      var C0 = [-s1, -hf, -s1], C1 = [s1, -hf, -s1], C2 = [s1, -hf, s1], C3 = [-s1, -hf, s1];
+      var D0 = [-s2, hf, -s2], D1 = [s2, hf, -s2], D2 = [s2, hf, s2], D3 = [-s2, hf, s2];
+      var vq = [C0, C1, C2, C3, D0, D1, D2, D3];
+      var eq = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+      eq.forEach(function (e) { edges.push([vq[e[0]], vq[e[1]]]); });
+      faces.push([C0, C1, C2, C3]);        // 下底面
+      faces.push([D0, D3, D2, D1]);        // 上底面
+      faces.push([C0, D0, D1, C1]);        // 四个梯形侧面
+      faces.push([C3, C2, D2, D3]);
+      faces.push([C2, C1, D1, D2]);
+      faces.push([C3, D3, D0, C0]);        // 左面（梯形，外法向 −x）
+    } else if (shape === 'frustum') {
+      // 圆台：下底半径 1.2、上底半径 0.6、高 1.6（可看作圆锥截去上部）
+      var R = 1.2, rU = 0.6, hF = 1.6, n3 = 32;   // 32 段圆环，保证轮廓圆滑
+      var bot2 = [], top2 = [];
+      for (i = 0; i < n3; i++) {
+        var t4 = i / n3 * 2 * Math.PI;
+        bot2.push([R * Math.cos(t4), -hF / 2, R * Math.sin(t4)]);
+        top2.push([rU * Math.cos(t4), hF / 2, rU * Math.sin(t4)]);
+      }
+      for (i = 0; i < n3; i++) {
+        edges.push([bot2[i], bot2[(i + 1) % n3]]);
+        edges.push([top2[i], top2[(i + 1) % n3]]);
+        if (i % 2 === 0) edges.push([bot2[i], top2[i]]);   // 母线（隔一条画）
+      }
+    }
+    return { edges: edges, faces: faces };
+  }
+
+  /** 各几何体的教学数据（顶点/棱/面、体积、表面积） */
+  var SHAPE_INFO = {
+    cuboid: {
+      name: '长方体', V: 8, E: 12, F: 6, euler: 2,
+      volL: 'V=abc=2\\times1.4\\times1.4\\approx3.92', volP: 'V = 2×1.4×1.4 ≈ 3.92',
+      surfL: 'S=2(ab+bc+ca)=2(2\\times1.4+1.4\\times1.4+1.4\\times2)\\approx15.12', surfP: 'S = 2(2×1.4+1.4×1.4+1.4×2) ≈ 15.12',
+      note: '多面体：满足欧拉公式 V−E+F = 2'
+    },
+    cube: {
+      name: '正方体', V: 8, E: 12, F: 6, euler: 2,
+      volL: 'V=a^{3}=1.2^{3}\\approx1.73', volP: 'V = a³ = 1.2³ ≈ 1.73',
+      surfL: 'S=6a^{2}=6\\times1.2^{2}=8.64', surfP: 'S = 6a² = 6×1.2² = 8.64',
+      note: '特殊的长方体（长=宽=高）：满足欧拉公式 V−E+F = 2'
+    },
+    cylinder: {
+      name: '圆柱', V: 0, E: 0, F: 3, euler: null,
+      volL: 'V=\\pi r^{2}h=\\pi\\times1^{2}\\times1.6\\approx5.03', volP: 'V = πr²h = π×1²×1.6 ≈ 5.03',
+      surfL: 'S=2\\pi r^{2}+2\\pi rh=2\\pi+3.2\\pi\\approx16.34', surfP: 'S = 2πr²+2πrh = 2π+3.2π ≈ 16.34',
+      note: '旋转体：侧面为曲面（展开为矩形），无棱无顶点'
+    },
+    cone: {
+      name: '圆锥', V: 1, E: 0, F: 2, euler: null,
+      volL: 'V=\\frac{1}{3}\\pi r^{2}h=\\frac{1.6\\pi}{3}\\approx1.68', volP: 'V = πr²h/3 = 1.6π/3 ≈ 1.68',
+      surfL: 'S=\\pi r^{2}+\\pi rl=\\pi+\\pi\\sqrt{1+1.6^{2}}\\approx9.07', surfP: 'S = πr²+πrl = π+π√(1+1.6²) ≈ 9.07',
+      note: '旋转体：1 个顶点、2 个面（底面 + 侧面）'
+    },
+    sphere: {
+      name: '球', V: 0, E: 0, F: 1, euler: null,
+      volL: 'V=\\frac{4}{3}\\pi r^{3}=\\frac{4\\pi\\times1.1^{3}}{3}\\approx5.58', volP: 'V = 4πr³/3 = 4π×1.1³/3 ≈ 5.58',
+      surfL: 'S=4\\pi r^{2}=4\\pi\\times1.1^{2}\\approx15.21', surfP: 'S = 4πr² = 4π×1.1² ≈ 15.21',
+      note: '球面为曲面，无棱无顶点；欧拉公式不适用'
+    },
+    triPrism: {
+      name: '三棱柱', V: 6, E: 9, F: 5, euler: 2,
+      volL: 'V=\\frac{\\sqrt{3}}{4}a^{2}h=\\frac{\\sqrt{3}\\times1.6^{2}\\times1.6}{4}\\approx1.77', volP: 'V = √3/4·a²h = √3×1.6²×1.6/4 ≈ 1.77',
+      surfL: 'S=\\frac{\\sqrt{3}}{2}a^{2}+3ah=\\frac{\\sqrt{3}\\times1.6^{2}}{2}+3\\times1.6^{2}\\approx9.90', surfP: 'S = √3/2·a²+3ah = √3×1.6²/2+3×1.6² ≈ 9.90',
+      note: '棱柱：侧棱互相平行，底面为三角形；V−E+F = 2'
+    },
+    pyramidFrustum: {
+      name: '正四棱台', V: 8, E: 12, F: 6, euler: 2,
+      volL: 'V=\\frac{h}{3}(S_{1}+S_{2}+\\sqrt{S_{1}S_{2}})=\\frac{1.4}{3}(2.56+0.64+1.28)\\approx2.09', volP: 'V = h/3·(S₁+S₂+√(S₁S₂)) = 1.4/3×(2.56+0.64+1.28) ≈ 2.09',
+      surfL: 'S=S_{1}+S_{2}+\\text{4个等腰梯形}\\approx10.19', surfP: 'S = 2.56+0.64+4×1.75 ≈ 10.19',
+      note: '棱台：可看作棱锥被平行于底面的平面截去上部；V−E+F = 2'
+    },
+    frustum: {
+      name: '圆台', V: 0, E: 0, F: 3, euler: null,
+      volL: 'V=\\frac{\\pi h}{3}(R^{2}+Rr+r^{2})=\\frac{1.6\\pi}{3}(1.44+0.72+0.36)\\approx4.22', volP: 'V = πh/3·(R²+Rr+r²) = 1.6π/3×(1.44+0.72+0.36) ≈ 4.22',
+      surfL: 'S=\\pi(R^{2}+r^{2})+\\pi(R+r)l\\approx15.32', surfP: 'S = π(R²+r²)+π(R+r)l ≈ 15.32',
+      note: '旋转体：可看作圆锥被平行于底面的平面截去上部'
+    }
+  };
+
+  /* ================================================================
+     ⑥ 数学模型注册表（★ 新增/修改模型就看这里 ★）
+     ----------------------------------------------------------------
+     每个模型是一个对象：
+       id       唯一标识
+       name     显示名称
+       cat      所属分类（与顶部导航一致）
+       params   参数数组：[{key,label,min,max,step,def,cap}] 或下拉框 {type:'select',options:[{v,label}],def}
+       checks   可选复选框数组：[{key, label, def}]
+       defaults 参数默认值对象
+       adjust(S)  可选：参数联动/越界修正（如椭圆的 b ≤ a）
+       draw(S)    绘制函数：用 H 助手在画布上画图
+       formulas(S) 更新底部公式区（setMath / setTable）
+       tick(S, dt) 可选：演示动画（配合 checks 里的 demo 复选框，如椭圆/双曲线动点 P）
+       canvasNote(S) 可选：绘图区左下角提示文字
+       hint     控制面板底部使用说明
+
+     ★ 新增一个模型：复制一个已有模型条目，改 id/name/params/defaults，
+       重写 draw(S) 与 formulas(S) 即可，导航会自动出现。
+     ================================================================ */
+  var REGISTRY = [
+
+    /* ---------- 基本函数 ---------- */
+    {
+      id: 'linear', name: '一次函数', cat: '基本函数',
+      params: [
+        { key: 'expr', type: 'text', label: '自定义函数（可选）', def: '',
+          cap: '输入如 x^3-x 后回车：显示自定义函数；留空用下方滑块' },
+        { key: 'k', label: '斜率 k', min: -5, max: 5, step: 0.05, def: 1.5, cap: 'k > 0 递增，k < 0 递减' },
+        { key: 'b', label: '截距 b', min: -7, max: 7, step: 0.05, def: -1, cap: '直线与 y 轴交于 (0, b)' }
+      ],
+      defaults: { expr: '', fn: null, err: '', k: 1.5, b: -1 },
+      compile: compileCustomExpr,
+      draw: function (S) {
+        if (S.fn) { drawUserFnGraph(S, false); return; }   // 自定义函数优先
+        H.setView(16, 15); H.grid(); H.axes();
+        // 模型：y = kx + b
+        H.plot(function (x) { return S.k * x + S.b; }, '#2563eb', 3.5);
+        H.dot(0, S.b, 5.5, '#0f766e', '(0, ' + fmt(S.b) + ')', 0.4, -0.4, '#0f766e', 16);
+        if (S.k !== 0) {
+          var x0 = -S.b / S.k;   // 与 x 轴交点：模型计算
+          H.dot(x0, 0, 5.5, '#0f766e', '(' + fmt(x0) + ', 0)', 0.4, 0.45, '#0f766e', 16);
+        }
+      },
+      formulas: function (S) {
+        if (S.fn) { formulasUserFn(S); return; }   // 自定义函数模式
+        var bS = S.b > 0 ? '+' + fmt(S.b) : (S.b < 0 ? '-' + fmt(-S.b) : '');
+        var kS = S.k === 0 ? '' : (S.k === 1 ? 'x' : (S.k === -1 ? '-x' : fmt(S.k) + 'x'));
+        var body = (S.k === 0 ? '' : (S.k === 1 ? 'y=x' : 'y=' + kS)) + bS;
+        if (body === '') body = 'y=0';
+        setMath(fEq, body, body);
+        if (S.k !== 0) {
+          var x0 = -S.b / S.k;
+          setMath(fC, '\\text{与}x\\text{轴交点}(' + fmt(x0) + ',0),\\ \\text{与}y\\text{轴交点}(0,' + fmt(S.b) + ')',
+            '与 x 轴交点 (' + fmt(x0) + ', 0)，与 y 轴交点 (0, ' + fmt(S.b) + ')');
+        } else {
+          setMath(fC, '\\text{与}x\\text{轴无交点，与}y\\text{轴交点}(0,' + fmt(S.b) + ')', '与 x 轴无交点，与 y 轴交点 (0, ' + fmt(S.b) + ')');
+        }
+        setMath(fE, S.k > 0 ? 'k>0,\\ \\text{增函数}' : (S.k < 0 ? 'k<0,\\ \\text{减函数}' : 'k=0,\\ \\text{常函数}'),
+          S.k > 0 ? 'k>0，增函数' : (S.k < 0 ? 'k<0，减函数' : 'k=0，常函数'));
+        setTable([
+          ['斜率 k', fmt(S.k)], ['截距 b', fmt(S.b)],
+          ['与 x 轴交点', S.k === 0 ? '无' : '(' + fmt(-S.b / S.k) + ', 0)'],
+          ['与 y 轴交点', '(0, ' + fmt(S.b) + ')'],
+          ['单调性', S.k > 0 ? '增函数' : (S.k < 0 ? '减函数' : '常函数')]
+        ]);
+      },
+      hint: '拖动 k（斜率）、b（截距），观察直线与两坐标轴交点的变化。'
+    },
+
+    {
+      id: 'quadratic', name: '二次函数', cat: '基本函数',
+      params: [
+        { key: 'expr', type: 'text', label: '自定义函数（可选）', def: '',
+          cap: '输入如 x^3-2*x 后回车：显示自定义函数；留空用下方滑块' },
+        { key: 'a', label: '二次项 a', min: -4, max: 4, step: 0.05, def: 1, cap: 'a 决定开口方向与宽窄' },
+        { key: 'b', label: '一次项 b', min: -6, max: 6, step: 0.05, def: -2, cap: '影响对称轴位置' },
+        { key: 'c', label: '常数项 c', min: -6, max: 6, step: 0.05, def: -3, cap: '与 y 轴交于 (0, c)' }
+      ],
+      defaults: { expr: '', fn: null, err: '', a: 1, b: -2, c: -3 },
+      adjust: function (S) { if (S.a === 0) S.a = S.a < 0 ? -0.05 : 0.05; },
+      compile: compileCustomExpr,
+      draw: function (S) {
+        if (S.fn) { drawUserFnGraph(S, false); return; }   // 自定义函数优先
+        H.setView(15, 14); H.grid(); H.axes();
+        var f = function (x) { return S.a * x * x + S.b * x + S.c; };   // 模型：y = ax²+bx+c
+        H.plot(f, '#2563eb', 3.5);
+        var xv = -S.b / (2 * S.a), yv = f(xv);   // 顶点：模型计算
+        H.line(xv, -6, xv, 6, '#94a3b8', 1.6, [6, 4]);   // 对称轴
+        H.dot(xv, yv, 6, '#0f766e', '顶点 (' + fmt(xv) + ', ' + fmt(yv) + ')', 0.5, -0.4, '#0f766e', 16);
+        H.dot(0, S.c, 5, '#d97706', '(0, ' + fmt(S.c) + ')', 0.45, 0.45, '#b45309', 15);
+      },
+      formulas: function (S) {
+        if (S.fn) { formulasUserFn(S); return; }   // 自定义函数模式
+        setMath(fEq, 'y=' + buildPolyLatex(S.a, S.b, S.c), 'y = ' + buildPolyPlain(S.a, S.b, S.c));
+        var D = S.b * S.b - 4 * S.a * S.c;              // 判别式：模型计算
+        var xv = -S.b / (2 * S.a), yv = (4 * S.a * S.c - S.b * S.b) / (4 * S.a);
+        setMath(fC, '\\Delta=b^{2}-4ac=' + fmt(D) + ', \\ \\text{顶点}(' + fmt(xv) + ',' + fmt(yv) + ')',
+          'Δ = b²−4ac = ' + fmt(D) + '，顶点 (' + fmt(xv) + ', ' + fmt(yv) + ')');
+        setMath(fE, '\\text{对称轴 }x=' + fmt(xv) + ',\\ \\text{开口}' + (S.a > 0 ? '\\text{向上}' : '\\text{向下}'),
+          '对称轴 x = ' + fmt(xv) + '，开口' + (S.a > 0 ? '向上' : '向下'));
+        fNote.textContent = D > 0 ? 'Δ > 0：与 x 轴有两个交点' : (D === 0 ? 'Δ = 0：与 x 轴相切（一个交点）' : 'Δ < 0：与 x 轴无交点');
+        setTable([
+          ['a（开口）', fmt(S.a) + (S.a > 0 ? ' 向上' : ' 向下')],
+          ['判别式 Δ', fmt(D)],
+          ['顶点', '(' + fmt(xv) + ', ' + fmt(yv) + ')'],
+          ['对称轴', 'x = ' + fmt(xv)],
+          ['与 x 轴交点', D > 0 ? '2 个' : (D === 0 ? '1 个（相切）' : '0 个')],
+          ['与 y 轴交点', '(0, ' + fmt(S.c) + ')']
+        ]);
+      },
+      hint: '观察 a 决定开口方向与宽窄，b、c 影响对称轴与上下位置；注意判别式 Δ 与交点个数。'
+    },
+
+    {
+      id: 'inverse', name: '反比例函数', cat: '基本函数',
+      params: [
+        { key: 'expr', type: 'text', label: '自定义函数（可选）', def: '',
+          cap: '输入如 1/(x^2+1) 后回车：显示自定义函数；留空用下方滑块' },
+        { key: 'k', label: '系数 k', min: -8, max: 8, step: 0.1, def: 2, cap: 'k>0 一三象限，k<0 二四象限' }
+      ],
+      defaults: { expr: '', fn: null, err: '', k: 2 },
+      adjust: function (S) { if (Math.abs(S.k) < 0.15) S.k = S.k >= 0 ? 0.2 : -0.2; },
+      compile: compileCustomExpr,
+      draw: function (S) {
+        if (S.fn) { drawUserFnGraph(S, false); return; }   // 自定义函数优先
+        H.setView(15, 15); H.grid(); H.axes();
+        // 模型：y = k/x（x=0 处自动断开）
+        H.plot(function (x) { return S.k / x; }, '#2563eb', 3.5);
+        H.text(1.2, S.k, 'y=' + fmt(S.k) + '/x', { color: '#2563eb', size: 17, align: 'left', bold: true });
+      },
+      formulas: function (S) {
+        if (S.fn) { formulasUserFn(S); return; }   // 自定义函数模式
+        setMath(fEq, 'y=\\frac{' + fmt(S.k) + '}{x}', 'y = ' + fmt(S.k) + '/x');
+        setMath(fC, S.k > 0 ? '\\text{两支曲线位于第一、三象限}' : '\\text{两支曲线位于第二、四象限}',
+          S.k > 0 ? '两支曲线位于第一、三象限' : '两支曲线位于第二、四象限');
+        setMath(fE, '\\text{渐近线：}x\\text{轴与}y\\text{轴}', '渐近线：x 轴与 y 轴');
+        fNote.textContent = '|k| 越大，曲线离原点越远';
+        setTable([
+          ['系数 k', fmt(S.k)],
+          ['所在象限', S.k > 0 ? '一、三' : '二、四'],
+          ['渐近线', 'x 轴、y 轴'],
+          ['单调性', S.k > 0 ? '每支内递减' : '每支内递增']
+        ]);
+      },
+      hint: 'k 决定两支曲线的位置与方向；注意曲线与坐标轴永不相交（渐近线）。'
+    },
+
+    {
+      id: 'power', name: '幂函数', cat: '基本函数',
+      params: [
+        { key: 'expr', type: 'text', label: '自定义函数（可选）', def: '',
+          cap: '输入如 x^3-x 后回车：显示自定义函数；留空用下方滑块' },
+        { key: 'n', label: '指数 n', min: -4, max: 4, step: 0.1, def: 2, cap: '观察 n 变化时曲线形态演变' }
+      ],
+      defaults: { expr: '', fn: null, err: '', n: 2 },
+      compile: compileCustomExpr,
+      draw: function (S) {
+        if (S.fn) { drawUserFnGraph(S, false); return; }   // 自定义函数优先
+        H.setView(15, 15); H.grid(); H.axes();
+        var n = S.n;
+        // 模型：y = xⁿ（x>0 恒有定义；x<0 仅 n 为整数时有意义）
+        H.plot(function (x) {
+          if (x > 0) return Math.pow(x, n);
+          if (x === 0) return n > 0 ? 0 : null;
+          if (Number.isInteger(n)) return (n % 2 === 0 ? 1 : -1) * Math.pow(-x, n);
+          return null;
+        }, '#2563eb', 3.5);
+        H.dot(1, 1, 6, '#dc2626', '(1, 1)', 0.45, -0.45, '#b91c1c', 16, true);
+        if (n > 0) H.dot(0, 0, 5, '#0f766e', 'O', -0.35, -0.35, '#0f766e', 15);
+      },
+      formulas: function (S) {
+        if (S.fn) { formulasUserFn(S); return; }   // 自定义函数模式
+        setMath(fEq, 'y=' + powXLatex(S.n), 'y = ' + powXPlain(S.n));
+        setMath(fC, '\\text{都过定点 }(1,1)', '都过定点 (1, 1)');
+        setMath(fE, Number.isInteger(S.n) ? '\\text{定义域}R' : '\\text{定义域}x>0\\text{（非整数指数时）}',
+          Number.isInteger(S.n) ? '定义域 R' : '定义域 x>0（非整数指数时）');
+        fNote.textContent = 'n 为整数时 x<0 一侧也有定义；n 越大曲线在 x>1 时越“陡”';
+        setTable([
+          ['指数 n', fmt(S.n)],
+          ['过定点', '(1, 1)'],
+          ['x>1 时', S.n > 1 ? '曲线在 y=x 上方' : (S.n === 1 ? '即直线 y=x' : '曲线在 y=x 下方')],
+          ['单调性', S.n > 0 ? '在 (0,+∞) 递增' : (S.n < 0 ? '在 (0,+∞) 递减' : '常函数 y=1')]
+        ]);
+      },
+      hint: '观察指数 n 从负到正时，曲线形态的连续演变。'
+    },
+
+    {
+      id: 'exp', name: '指数函数', cat: '基本函数',
+      params: [
+        { key: 'expr', type: 'text', label: '自定义函数（可选）', def: '',
+          cap: '输入如 2^(x+1) 后回车：显示自定义函数；留空用下方滑块' },
+        { key: 'a', label: '底数 a', min: 0.1, max: 6, step: 0.05, def: 2, cap: 'a>1 递增，0<a<1 递减' }
+      ],
+      defaults: { expr: '', fn: null, err: '', a: 2 },
+      adjust: function (S) { if (S.a === 1) S.a = 1.05; },   // 底数不能为 1
+      compile: compileCustomExpr,
+      draw: function (S) {
+        if (S.fn) { drawUserFnGraph(S, false); return; }   // 自定义函数优先
+        H.setView(15, 15); H.grid(); H.axes();
+        var a = S.a;
+        // 模型：y = aˣ
+        H.plot(function (x) { return Math.pow(a, x); }, '#2563eb', 3.5);
+        H.dot(0, 1, 6, '#dc2626', '(0, 1)', 0.45, -0.45, '#b91c1c', 16, true);
+        H.dot(1, a, 5, '#0f766e', '(1, ' + fmt(a) + ')', 0.45, -0.45, '#0f766e', 15);
+        if (a === 1) H.text(2, 1.3, 'a=1：退化为常函数 y=1', { color: '#b45309', size: 17, align: 'left' });
+      },
+      formulas: function (S) {
+        if (S.fn) { formulasUserFn(S); return; }   // 自定义函数模式
+        setMath(fEq, 'y=' + powLatex(fmt(S.a), 'x'), 'y = ' + powPlain(fmt(S.a), 'x'));
+        setMath(fC, '\\text{过定点 }(0,1),\\ \\text{渐近线 }y=0', '过定点 (0, 1)，渐近线 y=0');
+        setMath(fE, S.a > 1 ? 'a>1:\\ \\text{在}R\\text{上单调递增}' : (S.a < 1 ? '0<a<1:\\ \\text{在}R\\text{上单调递减}' : 'a=1:\\ \\text{常函数}y=1'),
+          S.a > 1 ? 'a>1：在 R 上单调递增' : (S.a < 1 ? '0<a<1：在 R 上单调递减' : 'a=1：常函数 y=1'));
+        setTable([
+          ['底数 a', fmt(S.a)],
+          ['过定点', '(0, 1)'],
+          ['渐近线', 'y = 0（x 轴）'],
+          ['值域', '(0, +∞)'],
+          ['单调性', S.a > 1 ? '增函数' : (S.a < 1 ? '减函数' : '常函数')]
+        ]);
+      },
+      hint: '底数 a>1 递增、0<a<1 递减，恒过 (0,1)，x 轴为渐近线。'
+    },
+
+    {
+      id: 'log', name: '对数函数', cat: '基本函数',
+      params: [
+        { key: 'expr', type: 'text', label: '自定义函数（可选）', def: '',
+          cap: '输入如 ln(x+2) 后回车：显示自定义函数；留空用下方滑块' },
+        { key: 'a', label: '底数 a', min: 0.1, max: 6, step: 0.05, def: 2, cap: 'a>1 递增，0<a<1 递减' }
+      ],
+      defaults: { expr: '', fn: null, err: '', a: 2 },
+      adjust: function (S) { if (S.a === 1) S.a = 1.05; },
+      compile: compileCustomExpr,
+      draw: function (S) {
+        if (S.fn) { drawUserFnGraph(S, false); return; }   // 自定义函数优先
+        H.setView(15, 15); H.grid(); H.axes();
+        var a = S.a, lna = Math.log(a);
+        // 模型：y = logₐx = ln x / ln a（x>0）
+        H.plot(function (x) { return x > 0 ? Math.log(x) / lna : null; }, '#2563eb', 3.5);
+        H.dot(1, 0, 6, '#dc2626', '(1, 0)', 0.45, -0.45, '#b91c1c', 16, true);
+        H.dot(a, 1, 5, '#0f766e', '(' + fmt(a) + ', 1)', 0.45, -0.45, '#0f766e', 15);
+        H.line(0, -6.5, 0, 6.5, '#94a3b8', 1.6, [6, 4]);   // 渐近线 x=0
+      },
+      formulas: function (S) {
+        if (S.fn) { formulasUserFn(S); return; }   // 自定义函数模式
+        setMath(fEq, 'y=\\log_{' + fmt(S.a) + '}x', 'y = log' + fmt(S.a) + 'x');
+        setMath(fC, '\\text{过定点 }(1,0),\\ \\text{渐近线 }x=0', '过定点 (1, 0)，渐近线 x=0');
+        setMath(fE, S.a > 1 ? 'a>1:\\ \\text{在}(0,+\\infty)\\text{上递增}' : '0<a<1:\\ \\text{在}(0,+\\infty)\\text{上递减}',
+          S.a > 1 ? 'a>1：在 (0,+∞) 上递增' : '0<a<1：在 (0,+∞) 上递减');
+        setTable([
+          ['底数 a', fmt(S.a)],
+          ['过定点', '(1, 0)'],
+          ['渐近线', 'x = 0（y 轴）'],
+          ['定义域', '(0, +∞)'],
+          ['单调性', S.a > 1 ? '增函数' : '减函数']
+        ]);
+      },
+      hint: '底数 a>1 递增、0<a<1 递减，恒过 (1,0)，y 轴为渐近线。'
+    },
+
+    {
+      id: 'fnCustom', name: '自定义函数', cat: '基本函数',
+      params: [
+        { key: 'expr', type: 'text', label: '函数 f(x)', def: 'x^3-3*x',
+          cap: '示例：x^2-2*x+1、1/(1+x^2)、sqrt(x+2)、2^x；输入后按回车确认' },
+        { key: 'r', label: '视野 ±r', min: 2, max: 12, step: 0.5, def: 6, cap: '横纵坐标显示范围' }
+      ],
+      defaults: { expr: 'x^3-3*x', r: 6, fn: null, err: '', implicit: false },
+      compile: function (st) { var res = compileExpr2(st.expr); st.fn = res.fn; st.err = res.err; st.implicit = res.implicit; },
+      draw: function (S) { drawCustomFn(S, '请输入正确的函数表达式（按回车确认）'); },
+      formulas: function (S) { formulasCustom(S, ['x^2-2*x+1', '1/(1+x^2)', 'sqrt(x+2)', '2^x']); },
+      hint: '输入任意函数（回车确认）生成图像：支持 sin/cos/tan、ln/lg、sqrt/abs、pi/e、^ 乘方，乘法写 *。'
+    },
+
+    {
+      id: 'multiFn', name: '多函数图像', cat: '基本函数',
+      params: [
+        { key: 'expr', type: 'textarea', label: '多个函数（每行一个）', def: 'x^2\nsin(x)\n2^x',
+          cap: '每行一个函数（或分号分隔），Ctrl+Enter 或点击其他处确认；最多 8 个' },
+        { key: 'imp', type: 'text', label: '隐式方程 F(x,y)=0（可选）', def: '',
+          cap: '如 x^2+y^2=4、x^2/9-y^2/4=1；与上方函数同屏显示；留空不画' },
+        { key: 'r', label: '视野 ±r', min: 2, max: 12, step: 0.5, def: 6, cap: '横纵坐标显示范围' }
+      ],
+      defaults: { expr: 'x^2\nsin(x)\n2^x', imp: '', impFn: null, impErr: '', r: 6, fns: [], err: '' },
+      compile: compileMultiFn,
+      draw: function (S) {
+        var r = S.r;
+        H.setViewRect(-r, r, -r, r); H.grid(); H.axes();
+        if ((!S.fns || S.fns.length === 0) && !S.impFn) {
+          H.text(0, 0, '请输入函数（每行一个）或隐式方程 F(x,y)=0', { color: '#dc2626', size: 18, bold: true });
+          return;
+        }
+        // 隐式方程 F(x,y)=0（等值线法，玫红色，先画作底层）
+        if (S.impFn) drawImplicit(S.impFn, r, '#db2777');
+        // 多个显式函数同屏绘制，不同颜色区分
+        S.fns.forEach(function (fn, i) {
+          if (!fn.fn) return;
+          H.plot(function (x) { return fn.fn(x, 0); }, MULTI_COLORS[i % MULTI_COLORS.length], 3);
+        });
+        // 图例（画布左上角，屏幕坐标，不随缩放）
+        var ly = 12;
+        function legendItem(text, col) {
+          ctx.font = '15px "Microsoft YaHei", sans-serif';
+          var tw = (ctx.measureText(text).width || 160) + 62;
+          ctx.fillStyle = 'rgba(255,255,255,0.88)';
+          ctx.fillRect(6, ly - 3, tw, 22);
+          ctx.strokeStyle = col; ctx.lineWidth = 3.5; ctx.setLineDash([]);
+          ctx.beginPath(); ctx.moveTo(12, ly + 8); ctx.lineTo(44, ly + 8); ctx.stroke();
+          ctx.fillStyle = col;
+          ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.fillText(text, 50, ly + 9);
+          ly += 26;
+        }
+        if (S.impFn) legendItem('F(x,y)=0: ' + S.imp, '#db2777');
+        S.fns.forEach(function (fn, i) {
+          if (!fn.fn) return;
+          legendItem(fn.expr, MULTI_COLORS[i % MULTI_COLORS.length]);
+        });
+      },
+      formulas: function (S) {
+        if ((!S.fns || S.fns.length === 0) && !S.impFn && !S.impErr) {
+          fEq.textContent = '请输入函数表达式（每行一个）或隐式方程，按回车确认';
+          fC.innerHTML = ''; fE.innerHTML = '';
+          fNote.textContent = '显式函数支持：x、^、+、−、*、/、sin()、cos()、tan()、ln()、lg()、sqrt()、abs()、pi、e；隐式方程用 =（如 x^2+y^2=4）';
+          setTable([['示例', 'x^2'], ['示例', 'sin(x)'], ['示例', '2^x'], ['隐式示例', 'x^2+y^2=4']]);
+          return;
+        }
+        var latex = [], plain = [], hasErr = false;
+        S.fns.forEach(function (fn, i) {
+          if (fn.err) { hasErr = true; return; }
+          latex.push('y_{' + (i + 1) + '}=' + fnToLatex(fn.expr));
+          plain.push('y' + (i + 1) + ' = ' + fn.expr);
+        });
+        if (S.impFn) {
+          latex.push(fnToLatex(S.imp));
+          plain.push(S.imp);
+        }
+        setMath(fEq, latex.join(',\\ '), plain.join('，'));
+        setMath(fC, '\\text{共}' + S.fns.length + '\\text{个函数}' + (S.impFn ? '\\text{ + 1 个隐式方程}' : '') + '\\text{同屏显示，不同颜色区分}',
+          '共 ' + S.fns.length + ' 个函数' + (S.impFn ? ' + 1 个隐式方程' : '') + '同屏显示，不同颜色区分');
+        setMath(fE, '\\text{视野：}x,y\\in[-' + fmt(S.r) + ',' + fmt(S.r) + ']', '视野：x, y ∈ [−' + fmt(S.r) + ', ' + fmt(S.r) + ']');
+        fNote.textContent = hasErr ? '部分函数表达式有误，未绘制（修改后回车重试）' :
+          (S.impErr ? '隐式方程有误：' + S.impErr + '（修改后回车重试）' : '每行一个函数；隐式方程用等值线法绘制（玫红色）；可配合「视野 ±r」或滚轮缩放观察');
+        var rows = [['函数个数', String(S.fns.length)], ['视野', 'x, y ∈ [−' + fmt(S.r) + ', ' + fmt(S.r) + ']']];
+        S.fns.forEach(function (fn, i) {
+          rows.push(['函数 ' + (i + 1), fn.err ? fn.expr + '（表达式有误）' : fn.expr]);
+        });
+        rows.push(['隐式方程', S.impFn ? S.imp : (S.impErr ? S.imp + '（表达式有误）' : '（未填写）')]);
+        setTable(rows);
+      },
+      hint: '每行输入一个函数（或用分号分隔），可另填一个隐式方程 F(x,y)=0，全部同屏对比；颜色自动区分，左上角有图例。'
+    },
+
+    /* ---------- 三角函数 ---------- */
+    {
+      id: 'sin', name: '正弦函数', cat: '三角函数',
+      params: [
+        { key: 'expr', type: 'text', label: '自定义函数（可选）', def: '',
+          cap: '输入如 sin(x)^2 后回车：显示自定义函数；留空用下方滑块' },
+        { key: 'A', label: '振幅 A', min: 0.2, max: 4, step: 0.05, def: 2, cap: '波形高度' },
+        { key: 'w', label: '角频率 ω', min: 0.2, max: 4, step: 0.05, def: 1, cap: '周期 T = 2π/ω' },
+        { key: 'phi', label: '初相 φ', min: 0, max: 6.3, step: 0.05, def: 0, cap: '单位：弧度' },
+        { key: 'B', label: '上下平移 B', min: -3, max: 3, step: 0.05, def: 0, cap: '平衡位置 y = B' }
+      ],
+      defaults: { expr: '', fn: null, err: '', A: 2, w: 1, phi: 0, B: 0 },
+      compile: compileCustomExpr,
+      draw: function (S) {
+        if (S.fn) { drawUserFnGraph(S, false); return; }   // 自定义函数优先
+        H.setView(14, 12); H.grid(); H.axes();
+        // 模型：y = A·sin(ωx+φ)+B
+        H.plot(function (x) { return S.A * Math.sin(S.w * x + S.phi) + S.B; }, '#2563eb', 3.5);
+        H.line(-7, S.B, 7, S.B, '#d97706', 1.8, [6, 4]);   // 平衡线
+        H.text(-6.6, S.B + 0.35, 'y=' + fmt(S.B), { color: '#b45309', size: 15, align: 'left' });
+      },
+      formulas: function (S) {
+        if (S.fn) { formulasUserFn(S); return; }   // 自定义函数模式
+        setMath(fEq, buildTrigLatex('sin', S.A, S.w, S.phi, S.B), buildTrigPlain('sin', S.A, S.w, S.phi, S.B));
+        var T = 2 * Math.PI / S.w;   // 周期：模型计算
+        setMath(fC, '\\text{振幅}A=' + fmt(S.A) + ',\\ \\text{周期}T=\\frac{2\\pi}{\\omega}=' + fmt2(T) + ',\\ \\text{频率}f=\\frac{1}{T}=' + fmt2(1 / T),
+          '振幅 A=' + fmt(S.A) + '，周期 T=2π/ω=' + fmt2(T) + '，频率 f=' + fmt2(1 / T));
+        setMath(fE, '\\text{初相}\\varphi=' + fmt(S.phi) + ',\\ \\text{值域}[' + fmt(S.B - S.A) + ',' + fmt(S.B + S.A) + ']',
+          '初相 φ=' + fmt(S.phi) + '，值域 [' + fmt(S.B - S.A) + ', ' + fmt(S.B + S.A) + ']');
+        setTable([
+          ['振幅 A', fmt(S.A)], ['周期 T', fmt2(T)], ['频率 f', fmt2(1 / T)],
+          ['初相 φ', fmt(S.phi) + ' rad'], ['平衡位置', 'y = ' + fmt(S.B)],
+          ['值域', '[' + fmt(S.B - S.A) + ', ' + fmt(S.B + S.A) + ']']
+        ]);
+      },
+      hint: 'A 控制振幅、ω 控制周期、φ 控制相位、B 控制上下平移。'
+    },
+
+    {
+      id: 'cos', name: '余弦函数', cat: '三角函数',
+      params: [
+        { key: 'expr', type: 'text', label: '自定义函数（可选）', def: '',
+          cap: '输入如 cos(2*x) 后回车：显示自定义函数；留空用下方滑块' },
+        { key: 'A', label: '振幅 A', min: 0.2, max: 4, step: 0.05, def: 2, cap: '波形高度' },
+        { key: 'w', label: '角频率 ω', min: 0.2, max: 4, step: 0.05, def: 1, cap: '周期 T = 2π/ω' },
+        { key: 'phi', label: '初相 φ', min: 0, max: 6.3, step: 0.05, def: 0, cap: '单位：弧度' },
+        { key: 'B', label: '上下平移 B', min: -3, max: 3, step: 0.05, def: 0, cap: '平衡位置 y = B' }
+      ],
+      defaults: { expr: '', fn: null, err: '', A: 2, w: 1, phi: 0, B: 0 },
+      compile: compileCustomExpr,
+      draw: function (S) {
+        if (S.fn) { drawUserFnGraph(S, false); return; }   // 自定义函数优先
+        H.setView(14, 12); H.grid(); H.axes();
+        // 模型：y = A·cos(ωx+φ)+B
+        H.plot(function (x) { return S.A * Math.cos(S.w * x + S.phi) + S.B; }, '#2563eb', 3.5);
+        H.line(-7, S.B, 7, S.B, '#d97706', 1.8, [6, 4]);
+        H.text(-6.6, S.B + 0.35, 'y=' + fmt(S.B), { color: '#b45309', size: 15, align: 'left' });
+      },
+      formulas: function (S) {
+        if (S.fn) { formulasUserFn(S); return; }   // 自定义函数模式
+        setMath(fEq, buildTrigLatex('cos', S.A, S.w, S.phi, S.B), buildTrigPlain('cos', S.A, S.w, S.phi, S.B));
+        var T = 2 * Math.PI / S.w;
+        setMath(fC, '\\text{振幅}A=' + fmt(S.A) + ',\\ \\text{周期}T=' + fmt2(T) + ',\\ \\text{频率}f=' + fmt2(1 / T),
+          '振幅 A=' + fmt(S.A) + '，周期 T=' + fmt2(T) + '，频率 f=' + fmt2(1 / T));
+        setMath(fE, '\\text{初相}\\varphi=' + fmt(S.phi) + ',\\ \\text{值域}[' + fmt(S.B - S.A) + ',' + fmt(S.B + S.A) + ']',
+          '初相 φ=' + fmt(S.phi) + '，值域 [' + fmt(S.B - S.A) + ', ' + fmt(S.B + S.A) + ']');
+        setTable([
+          ['振幅 A', fmt(S.A)], ['周期 T', fmt2(T)], ['频率 f', fmt2(1 / T)],
+          ['初相 φ', fmt(S.phi) + ' rad'], ['平衡位置', 'y = ' + fmt(S.B)],
+          ['值域', '[' + fmt(S.B - S.A) + ', ' + fmt(S.B + S.A) + ']']
+        ]);
+      },
+      hint: '与正弦同参数体系，对比观察 y = sin x 与 y = cos x 的相位关系。'
+    },
+
+    {
+      id: 'tan', name: '正切函数', cat: '三角函数',
+      params: [
+        { key: 'expr', type: 'text', label: '自定义函数（可选）', def: '',
+          cap: '输入如 tan(2*x) 后回车：显示自定义函数；留空用下方滑块' },
+        { key: 'A', label: '系数 A', min: 0.2, max: 4, step: 0.05, def: 1, cap: '波形陡峭程度' },
+        { key: 'w', label: '角频率 ω', min: 0.2, max: 4, step: 0.05, def: 1, cap: '周期 T = π/ω' },
+        { key: 'phi', label: '初相 φ', min: 0, max: 3.14, step: 0.05, def: 0, cap: '单位：弧度' }
+      ],
+      defaults: { expr: '', fn: null, err: '', A: 1, w: 1, phi: 0 },
+      compile: compileCustomExpr,
+      draw: function (S) {
+        if (S.fn) { drawUserFnGraph(S, false); return; }   // 自定义函数优先
+        H.setView(9.5, 15); H.grid(); H.axes();
+        // 模型：y = A·tan(ωx+φ)，在渐近线处自动断开
+        H.plot(function (x) { return S.A * Math.tan(S.w * x + S.phi); }, '#2563eb', 3.5);
+        // 渐近线：ωx+φ = π/2 + kπ
+        var V = H.V;
+        for (var k = -10; k <= 10; k++) {
+          var xa = (Math.PI / 2 - S.phi + k * Math.PI) / S.w;
+          if (xa > V.xmin && xa < V.xmax) H.line(xa, V.ymin, xa, V.ymax, '#94a3b8', 1.6, [6, 4]);
+        }
+      },
+      formulas: function (S) {
+        if (S.fn) { formulasUserFn(S); return; }   // 自定义函数模式
+        setMath(fEq, buildTrigLatex('tan', S.A, S.w, S.phi, 0), buildTrigPlain('tan', S.A, S.w, S.phi, 0));
+        var T = Math.PI / S.w;
+        setMath(fC, '\\text{周期}T=\\frac{\\pi}{\\omega}=' + fmt2(T), '周期 T = π/ω = ' + fmt2(T));
+        setMath(fE, '\\text{渐近线：}\\omega x+\\varphi=\\frac{\\pi}{2}+k\\pi', '渐近线：ωx+φ = π/2 + kπ');
+        setTable([
+          ['系数 A', fmt(S.A)], ['角频率 ω', fmt(S.w)],
+          ['周期 T', fmt2(T)],
+          ['渐近线', 'x = (π/2−φ)/ω + kπ/ω']
+        ]);
+      },
+      hint: '观察周期 T=π/ω 与渐近线的位置变化。'
+    },
+
+    {
+      id: 'unitcircle', name: '单位圆', cat: '三角函数',
+      params: [
+        { key: 'deg', label: '角 θ（度）', min: 0, max: 360, step: 1, def: 45, cap: '终边与单位圆交于点 P' }
+      ],
+      defaults: { deg: 45 },
+      draw: function (S) {
+        H.setView(5.8, 5.8); H.grid(); H.axes();
+        var th = S.deg * Math.PI / 180;
+        var px = Math.cos(th), py = Math.sin(th);
+        // 模型：单位圆 x² + y² = 1，P(cosθ, sinθ)
+        ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(H.X(0), H.Y(0), H.V.scale, 0, Math.PI * 2); ctx.stroke();
+        // 30° 间隔刻度线
+        ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.2;
+        for (var d0 = 0; d0 < 360; d0 += 30) {
+          var a0 = d0 * Math.PI / 180;
+          H.line(0.93 * Math.cos(a0), 0.93 * Math.sin(a0), Math.cos(a0), Math.sin(a0), '#cbd5e1', 1.2);
+        }
+        // 角度弧（采样绘制，θ 从 0 到 th）
+        ctx.strokeStyle = '#d97706'; ctx.lineWidth = 2; ctx.setLineDash([]);
+        ctx.beginPath();
+        for (var t = 0; t <= th + 0.001; t += 0.02) {
+          var ax = 0.42 * Math.cos(t), ay = 0.42 * Math.sin(t);
+          if (t === 0) ctx.moveTo(H.X(ax), H.Y(ay)); else ctx.lineTo(H.X(ax), H.Y(ay));
+        }
+        ctx.stroke();
+        // 半径 OP
+        H.line(0, 0, px, py, '#334155', 2.5);
+        // sin 段（垂直虚线）、cos 段（水平虚线）
+        H.line(px, 0, px, py, '#dc2626', 2, [5, 4]);
+        H.line(0, 0, px, 0, '#0f766e', 2, [5, 4]);
+        // 标注
+        H.text(px / 2, -0.2, 'cosθ=' + fmt2(px), { color: '#0f766e', size: 14 });
+        H.text(px + 0.32, py / 2, 'sinθ=' + fmt2(py), { color: '#b91c1c', size: 14, align: 'left' });
+        H.text(0.5, 0.55, 'θ=' + S.deg + '°', { color: '#b45309', size: 15 });
+        H.dot(px, py, 6, '#2563eb', 'P(cosθ, sinθ)', 0.35, 0.35, '#1d4ed8', 15, true);
+        // tan 段：与切线 x=1 的交点 T(1, tanθ)（模型计算 tanθ = sinθ/cosθ）
+        if (Math.abs(px) > 1e-6) {
+          var ty = py / px;
+          H.line(1, 0, 1, ty, '#7c3aed', 1.6, [5, 4]);
+          H.dot(1, ty, 5, '#7c3aed', 'T(1, tanθ)', 0.4, 0.35, '#6d28d9', 14);
+        }
+      },
+      formulas: function (S) {
+        var th = S.deg * Math.PI / 180;
+        var c = Math.cos(th), s = Math.sin(th);
+        var t = Math.abs(c) < 1e-9 ? null : s / c;
+        setMath(fEq, '\\cos' + S.deg + '^{\\circ}=' + fmt2(c) + ',\\ \\sin' + S.deg + '^{\\circ}=' + fmt2(s),
+          'cos' + S.deg + '° = ' + fmt2(c) + '，sin' + S.deg + '° = ' + fmt2(s));
+        if (t === null) {
+          setMath(fC, '\\tan' + S.deg + '^{\\circ}\\ \\text{无意义（cos}\\theta=0\\text{）}',
+            'tan' + S.deg + '° 无意义（cosθ = 0）');
+        } else {
+          setMath(fC, '\\tan' + S.deg + '^{\\circ}=\\frac{\\sin\\theta}{\\cos\\theta}=' + fmt2(t),
+            'tan' + S.deg + '° = sinθ/cosθ = ' + fmt2(t));
+        }
+        setMath(fE, '\\sin^{2}\\theta+\\cos^{2}\\theta=' + fmt2(s * s + c * c) + '=1',
+          'sin²θ + cos²θ = ' + fmt2(s * s + c * c) + ' = 1');
+        var d = S.deg % 360;
+        var quad;
+        if (d === 0) quad = 'x 轴正半轴';
+        else if (d === 90) quad = 'y 轴正半轴';
+        else if (d === 180) quad = 'x 轴负半轴';
+        else if (d === 270) quad = 'y 轴负半轴';
+        else if (d < 90) quad = '第一象限';
+        else if (d < 180) quad = '第二象限';
+        else if (d < 270) quad = '第三象限';
+        else quad = '第四象限';
+        fNote.textContent = 'θ = ' + S.deg + '°，终边在' + quad + '；sinθ ' +
+          (s > 0 ? '为正' : (s < 0 ? '为负' : '为零')) + '，cosθ ' +
+          (c > 0 ? '为正' : (c < 0 ? '为负' : '为零'));
+        setTable([
+          ['角度 θ', S.deg + '°（' + fmt2(th) + ' rad）'],
+          ['sinθ', fmt2(s)], ['cosθ', fmt2(c)],
+          ['tanθ', t === null ? '无意义' : fmt2(t)],
+          ['sin²θ+cos²θ', '1'], ['终边位置', quad]
+        ]);
+      },
+      canvasNote: function () { return '红色竖线段 = sinθ，绿色水平线段 = cosθ，紫色 = tanθ（x=1 处切线）'; },
+      hint: '拖动角度 θ，观察 sin、cos、tan 在单位圆上的几何意义与象限符号。'
+    },
+
+    {
+      id: 'trigCustom', name: '自定义函数', cat: '三角函数',
+      params: [
+        { key: 'expr', type: 'text', label: '函数 f(x)', def: 'sin(2*x)+cos(x)',
+          cap: '示例：sin(x)、2*sin(3*x)+1、tan(x)、sin(x)^2；输入后按回车确认' },
+        { key: 'r', label: '视野 ±r', min: 2, max: 12, step: 0.5, def: 6, cap: '横纵坐标显示范围' }
+      ],
+      defaults: { expr: 'sin(2*x)+cos(x)', r: 6, fn: null, err: '', implicit: false },
+      compile: function (st) { var res = compileExpr2(st.expr); st.fn = res.fn; st.err = res.err; st.implicit = res.implicit; },
+      draw: function (S) { drawCustomFn(S, '请输入正确的函数表达式（按回车确认）'); },
+      formulas: function (S) { formulasCustom(S, ['sin(x)', '2*sin(3*x)+1', 'tan(x)', 'sin(x)^2']); },
+      hint: '输入任意函数（回车确认）生成图像；注意三角函数的自变量 x 单位是弧度。'
+    },
+
+    /* ---------- 圆锥曲线 ---------- */
+    {
+      id: 'ellipse', name: '椭圆', cat: '圆锥曲线',
+      params: [
+        { key: 'a', label: '长半轴 a', min: 1, max: 6, step: 0.05, def: 3, cap: '范围 1.0 ~ 6.0' },
+        { key: 'b', label: '短半轴 b', min: 0.5, max: 3, step: 0.05, def: 2, cap: '范围 0.5 ~ a（b=a 时为圆）' }
+      ],
+      checks: [{ key: 'demo', label: '焦点性质演示（动点 P）', def: false }],
+      defaults: { a: 3, b: 2, demo: false, demoAngle: 0.7 },
+      adjust: function (S) {
+        // 模型约束：a ≥ b（焦点在 x 轴）
+        if (S.b > S.a) S.b = S.a;
+        if (S.b < 0.5) S.b = 0.5;
+      },
+      tick: function (st, dt) { st.demoAngle = (st.demoAngle + dt * DEMO_SPEED) % (Math.PI * 2); },
+      draw: function (S) {
+        H.setView(15, 13); H.grid(); H.axes();
+        var a = S.a, b = S.b;
+        // 模型：x²/a² + y²/b² = 1，参数方程 x = a·cos t, y = b·sin t
+        H.plotParam(function (t) { return { x: a * Math.cos(t), y: b * Math.sin(t) }; }, 0, Math.PI * 2, '#2563eb', 3.5, 320);
+        var c = Math.sqrt(a * a - b * b);   // 半焦距：模型计算
+        // 尺寸标注：a、b
+        H.line(0, -0.45, a, -0.45, '#d97706', 1.6, [6, 4]);
+        H.text(a / 2, -0.72, 'a=' + fmt(a), { color: '#b45309', size: 16, bold: true });
+        H.line(-0.55, 0, -0.55, b, '#d97706', 1.6, [6, 4]);
+        H.text(-0.8, b / 2, 'b=' + fmt(b), { color: '#b45309', size: 16, bold: true, align: 'right' });
+        // 焦点与顶点
+        if (c < 0.01) {
+          H.dot(0, 0, 6, '#dc2626', 'F₁＝F₂', 0.35, -0.35, '#b91c1c', 16, true);
+        } else {
+          H.dot(-c, 0, 6, '#dc2626', 'F₁', -0.35, -0.35, '#b91c1c', 16, true);
+          H.dot(c, 0, 6, '#dc2626', 'F₂', 0.35, -0.35, '#b91c1c', 16, true);
+        }
+        H.dot(-a, 0, 4.5, '#0f766e', 'A₁', -0.35, -0.4, '#0f766e', 15);
+        H.dot(a, 0, 4.5, '#0f766e', 'A₂', 0.35, -0.4, '#0f766e', 15);
+        H.dot(0, -b, 4.5, '#0f766e', 'B₁', -0.35, 0.35, '#0f766e', 15);
+        H.dot(0, b, 4.5, '#0f766e', 'B₂', 0.35, -0.4, '#0f766e', 15);
+        // 动点 P（勾选演示时）
+        if (S.demo) {
+          var Q = { x: a * Math.cos(S.demoAngle), y: b * Math.sin(S.demoAngle) };
+          H.line(Q.x, Q.y, -c, 0, '#dc2626', 2.2, [8, 5]);
+          H.line(Q.x, Q.y, c, 0, '#dc2626', 2.2, [8, 5]);
+          H.dot(Q.x, Q.y, 7, '#059669', 'P', 0.42, 0.42, '#047857', 18, true);
+          var d1 = Math.hypot(Q.x + c, Q.y), d2 = Math.hypot(Q.x - c, Q.y);
+          noteEl.innerHTML = '|PF₁| = ' + fmt2(d1) + '　|PF₂| = ' + fmt2(d2) +
+            '　|PF₁| + |PF₂| = ' + fmt2(d1 + d2) + ' = 2a = ' + fmt2(2 * a);
+        }
+      },
+      canvasNote: function (S) { return S.demo ? null : '勾选「焦点性质演示」，观察 |PF₁| + |PF₂| = 2a（点击画布可移动 P）'; },
+      formulas: function (S) {
+        var a = S.a, b = S.b, c = Math.sqrt(a * a - b * b), e = c / a;
+        setMath(fEq, '\\frac{x^{2}}{' + fmt(a * a) + '}+\\frac{y^{2}}{' + fmt(b * b) + '}=1\\qquad(a=' + fmt(a) + ',\\ b=' + fmt(b) + ')',
+          'x²/' + fmt(a * a) + ' + y²/' + fmt(b * b) + ' = 1　(a = ' + fmt(a) + ', b = ' + fmt(b) + ')');
+        setMath(fC, 'c=\\sqrt{a^{2}-b^{2}}=\\sqrt{' + fmt(a * a - b * b) + '}\\approx ' + fmt2(c),
+          'c = √(a²−b²) = √' + fmt(a * a - b * b) + ' ≈ ' + fmt2(c));
+        setMath(fE, 'e=\\frac{c}{a}\\approx ' + fmt2(e) + '\\ (<1)',
+          'e = c/a ≈ ' + fmt2(e) + ' (<1)');
+        if (c < 0.01) {
+          fNote.textContent = 'a = b：曲线为圆，两焦点重合于圆心，e = 0';
+        } else {
+          fNote.textContent = 'e 越接近 0 越圆，越接近 1 越扁';
+        }
+        setTable([
+          ['长半轴 a', fmt(a)], ['短半轴 b', fmt(b)], ['长轴长 2a', fmt(2 * a)], ['短轴长 2b', fmt(2 * b)],
+          ['半焦距 c', fmt2(c)], ['焦距 2c', fmt2(2 * c)], ['离心率 e', fmt2(e)],
+          ['焦点', c < 0.01 ? '(0,0) 重合' : '(±' + fmt2(c) + ', 0)']
+        ]);
+      },
+      hint: '拖动 a、b 观察椭圆形态：a 拉长横向、b 拉长纵向；b = a 时变为圆。'
+    },
+
+    {
+      id: 'hyperbola', name: '双曲线', cat: '圆锥曲线',
+      params: [
+        { key: 'a', label: '实半轴 a', min: 0.5, max: 4, step: 0.05, def: 2, cap: '顶点 (±a, 0)' },
+        { key: 'b', label: '虚半轴 b', min: 0.5, max: 4, step: 0.05, def: 1.5, cap: '决定渐近线斜率' }
+      ],
+      checks: [{ key: 'demo', label: '焦点性质演示（动点 P）', def: false }],
+      defaults: { a: 2, b: 1.5, demo: false, demoAngle: 0 },
+      tick: function (st, dt) { st.demoAngle += dt * 0.3; },   // 演示点沿右支往返运动
+      draw: function (S) {
+        H.setView(15, 13); H.grid(); H.axes();
+        var a = S.a, b = S.b, c = Math.sqrt(a * a + b * b);   // 半焦距：模型计算 c² = a²+b²
+        // 模型：x²/a² − y²/b² = 1，即 y = ±b·√(x²/a² − 1)
+        H.plot(function (x) {
+          if (Math.abs(x) < a) return null;
+          return b * Math.sqrt(x * x / (a * a) - 1);
+        }, '#2563eb', 3.5);
+        H.plot(function (x) {
+          if (Math.abs(x) < a) return null;
+          return -b * Math.sqrt(x * x / (a * a) - 1);
+        }, '#2563eb', 3.5);
+        // 渐近线 y = ±(b/a)x
+        H.line(-7.5, -7.5 * b / a, 7.5, 7.5 * b / a, '#94a3b8', 1.8, [6, 4]);
+        H.line(-7.5, 7.5 * b / a, 7.5, -7.5 * b / a, '#94a3b8', 1.8, [6, 4]);
+        H.dot(-c, 0, 6, '#dc2626', 'F₁', -0.35, -0.35, '#b91c1c', 16, true);
+        H.dot(c, 0, 6, '#dc2626', 'F₂', 0.35, -0.35, '#b91c1c', 16, true);
+        H.dot(-a, 0, 4.5, '#0f766e', 'A₁', -0.35, -0.4, '#0f766e', 15);
+        H.dot(a, 0, 4.5, '#0f766e', 'A₂', 0.35, -0.4, '#0f766e', 15);
+        H.text(4.5, 4.5 * b / a + 0.35, 'y=' + fmt(b / a) + 'x', { color: '#64748b', size: 15 });
+        // 动点 P（勾选演示时）：右支参数方程 x = a·cosh u, y = b·sinh u（模型计算）
+        if (S.demo) {
+          var u = 2.2 * Math.sin(S.demoAngle);
+          var Q = { x: a * Math.cosh(u), y: b * Math.sinh(u) };
+          H.line(Q.x, Q.y, -c, 0, '#dc2626', 2.2, [8, 5]);
+          H.line(Q.x, Q.y, c, 0, '#dc2626', 2.2, [8, 5]);
+          H.dot(Q.x, Q.y, 7, '#059669', 'P', 0.42, 0.42, '#047857', 18, true);
+          var d1 = Math.hypot(Q.x + c, Q.y), d2 = Math.hypot(Q.x - c, Q.y);
+          noteEl.innerHTML = '|PF₁| = ' + fmt2(d1) + '　|PF₂| = ' + fmt2(d2) +
+            '　|PF₁| − |PF₂| = ' + fmt2(d1 - d2) + ' = 2a = ' + fmt2(2 * a);
+        }
+      },
+      canvasNote: function (S) { return S.demo ? null : '勾选「焦点性质演示」，观察 |PF₁| − |PF₂| = 2a（点 P 沿右支运动）'; },
+      formulas: function (S) {
+        var a = S.a, b = S.b, c = Math.sqrt(a * a + b * b), e = c / a;
+        setMath(fEq, '\\frac{x^{2}}{' + fmt(a * a) + '}-\\frac{y^{2}}{' + fmt(b * b) + '}=1',
+          'x²/' + fmt(a * a) + ' − y²/' + fmt(b * b) + ' = 1');
+        setMath(fC, 'c=\\sqrt{a^{2}+b^{2}}=\\sqrt{' + fmt(a * a + b * b) + '}\\approx ' + fmt2(c),
+          'c = √(a²+b²) = √' + fmt(a * a + b * b) + ' ≈ ' + fmt2(c));
+        setMath(fE, 'e=\\frac{c}{a}\\approx ' + fmt2(e) + '\\ (>1),\\ \\text{渐近线}y=\\pm\\frac{b}{a}x',
+          'e = c/a ≈ ' + fmt2(e) + ' (>1)，渐近线 y = ±' + fmt(b / a) + 'x');
+        setTable([
+          ['实半轴 a', fmt(a)], ['虚半轴 b', fmt(b)], ['实轴 2a', fmt(2 * a)], ['虚轴 2b', fmt(2 * b)],
+          ['半焦距 c', fmt2(c)], ['离心率 e', fmt2(e)],
+          ['焦点', '(±' + fmt2(c) + ', 0)'], ['顶点', '(±' + fmt(a) + ', 0)'],
+          ['渐近线', 'y = ±' + fmt(b / a) + 'x']
+        ]);
+      },
+      hint: 'a、b 决定开口大小与渐近线斜率；注意双曲线 c² = a² + b²，e > 1。'
+    },
+
+    {
+      id: 'parabola', name: '抛物线', cat: '圆锥曲线',
+      params: [
+        { key: 'p', label: '焦参数 p', min: -4, max: 4, step: 0.05, def: 2, cap: 'p>0 开口向右，p<0 开口向左' }
+      ],
+      defaults: { p: 2 },
+      adjust: function (S) { if (Math.abs(S.p) < 0.3) S.p = S.p >= 0 ? 0.3 : -0.3; },
+      draw: function (S) {
+        H.setView(15, 13); H.grid(); H.axes();
+        var p = S.p;
+        // 模型：y² = 2px，参数方程 x = p·t²/2，y = p·t
+        var tmax = Math.sqrt(7.2 / Math.abs(p)) * 1.25;
+        H.plotParam(function (t) { return { x: p * t * t / 2, y: p * t }; }, -tmax, tmax, '#2563eb', 3.5, 300);
+        H.dot(p / 2, 0, 6, '#dc2626', 'F(' + fmt(p / 2) + ',0)', 0.5, -0.4, '#b91c1c', 16, true);   // 焦点：模型计算
+        H.line(-p / 2, -6.5, -p / 2, 6.5, '#94a3b8', 1.8, [6, 4]);   // 准线 x = −p/2
+        H.text(-p / 2, 6.7, '准线 x=' + fmt(-p / 2), { color: '#64748b', size: 15 });
+        H.dot(0, 0, 5, '#0f766e', 'O', -0.35, -0.35, '#0f766e', 15);
+      },
+      formulas: function (S) {
+        var p = S.p;
+        setMath(fEq, 'y^{2}=2px\\ (p=' + fmt(p) + ')', 'y² = 2px（p = ' + fmt(p) + '）');
+        setMath(fC, '\\text{焦点}F(\\frac{p}{2},0)=(' + fmt(p / 2) + ',0)',
+          '焦点 F(' + fmt(p / 2) + ', 0)');
+        setMath(fE, '\\text{准线}x=-\\frac{p}{2}=' + fmt(-p / 2) + ',\\ \\text{离心率}e=1',
+          '准线 x = ' + fmt(-p / 2) + '，离心率 e = 1');
+        fNote.textContent = p > 0 ? 'p>0：开口向右' : 'p<0：开口向左';
+        setTable([
+          ['焦参数 p', fmt(p)],
+          ['焦点', '(' + fmt(p / 2) + ', 0)'],
+          ['准线', 'x = ' + fmt(-p / 2)],
+          ['顶点', 'O(0, 0)'],
+          ['开口方向', p > 0 ? '向右' : '向左'],
+          ['离心率', 'e = 1']
+        ]);
+      },
+      hint: 'p 的绝对值决定开口宽窄，符号决定开口方向；注意焦点与准线的位置。'
+    },
+
+    {
+      id: 'conicCustom', name: '自定义方程', cat: '圆锥曲线',
+      params: [
+        { key: 'expr', type: 'text', label: '方程 F(x,y)=0', def: 'x^2/9+y^2/4=1',
+          cap: '示例：x^2+y^2=4、x^2/9-y^2/4=1、y^2=4*x；输入后按回车确认' },
+        { key: 'r', label: '视野 ±r', min: 2, max: 12, step: 0.5, def: 6, cap: '横纵坐标显示范围' }
+      ],
+      defaults: { expr: 'x^2/9+y^2/4=1', r: 6, fn: null, err: '', implicit: true },
+      compile: function (st) { var res = compileExpr2(st.expr); st.fn = res.fn; st.err = res.err; st.implicit = res.implicit; },
+      draw: function (S) { drawCustomFn(S, '请输入正确的方程（按回车确认）'); },
+      formulas: function (S) { formulasCustom(S, ['x^2+y^2=4', 'x^2/9-y^2/4=1', 'y^2=4*x', 'x*y=1']); },
+      hint: '支持隐式方程 F(x,y)=0（含 x、y 或带 = 的式子），自动用等值线法绘制；也支持显式 y=f(x)。'
+    },
+
+    /* ---------- 立体几何（3D） ---------- */
+    {
+      id: 'solid', name: '立体几何（3D）', cat: '立体几何',
+      params: [
+        {
+          key: 'shape', type: 'select', label: '几何体',
+          options: [
+            { v: 'cuboid', label: '长方体' },
+            { v: 'cube', label: '正方体' },
+            { v: 'triPrism', label: '三棱柱' },
+            { v: 'pyramidFrustum', label: '正四棱台' },
+            { v: 'cylinder', label: '圆柱' },
+            { v: 'cone', label: '圆锥' },
+            { v: 'frustum', label: '圆台' },
+            { v: 'sphere', label: '球' }
+          ], def: 'cuboid', cap: '切换几何体'
+        },
+        { key: 'ry', label: '绕Y轴旋转', min: -180, max: 180, step: 1, def: 30, cap: '水平转动视角' },
+        { key: 'rx', label: '绕X轴旋转', min: -90, max: 90, step: 1, def: 15, cap: '俯仰转动视角' }
+      ],
+      defaults: { shape: 'cuboid', ry: 30, rx: 15 },
+      draw: function (S) {
+        // ---- 3D 模型：几何体线框（顶点绕 X/Y 轴旋转 → 正交投影） ----
+        H.setView(6.5, 6.5);
+        var data = shapeData(S.shape);   // 获取当前几何体的棱与面
+
+        // 旋转 + 正交投影（观察者在 +z 方向看向原点）
+        function P(v) {
+          var b = S.ry * Math.PI / 180, a = S.rx * Math.PI / 180;
+          var cb = Math.cos(b), sb = Math.sin(b), ca = Math.cos(a), sa = Math.sin(a);
+          var x1 = v[0] * cb + v[2] * sb;
+          var z1 = -v[0] * sb + v[2] * cb;
+          var y2 = v[1] * ca - z1 * sa;
+          var z2 = v[1] * sa + z1 * ca;
+          return { x: x1, y: y2, z: z2 };
+        }
+        // 3D 坐标轴（浅灰；受「坐标系」开关控制）
+        if (showCoord) {
+          [[[0, 0, 0], [2.4, 0, 0]], [[0, 0, 0], [0, 2.4, 0]], [[0, 0, 0], [0, 0, 2.4]]].forEach(function (L) {
+            var p1 = P(L[0]), p2 = P(L[1]);
+            H.line(p1.x, p1.y, p2.x, p2.y, '#94a3b8', 1.6);
+          });
+          H.text(P([2.5, 0, 0]).x, P([2.5, 0, 0]).y, 'x', { color: '#94a3b8', size: 15 });
+          H.text(P([0, 2.5, 0]).x, P([0, 2.5, 0]).y, 'y', { color: '#94a3b8', size: 15 });
+          H.text(P([0, 0, 2.5]).x, P([0, 0, 2.5]).y, 'z', { color: '#94a3b8', size: 15 });
+        }
+
+        // 面（仅长方体）：填充朝向观察者的面（法向 z 分量 > 0）
+        data.faces.forEach(function (f) {
+          var pts = f.map(P);
+          var e1x = pts[1].x - pts[0].x, e1y = pts[1].y - pts[0].y;
+          var e2x = pts[2].x - pts[0].x, e2y = pts[2].y - pts[0].y;
+          var nz = e1x * e2y - e1y * e2x;
+          if (nz > 0) {
+            ctx.beginPath();
+            pts.forEach(function (p, i) {
+              if (i === 0) ctx.moveTo(H.X(p.x), H.Y(p.y)); else ctx.lineTo(H.X(p.x), H.Y(p.y));
+            });
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(37,99,235,0.13)';
+            ctx.fill();
+          }
+        });
+        // 棱：先画背面（中点 z < 0，远离观察者），再画正面（z > 0）
+        // 区分「几何体边」与「内部结构线」：
+        //   边（深色突出）= 多面体的棱、旋转体的顶/底圆环
+        //   结构线（淡化）= 圆柱/圆锥/圆台的母线、球的经纬线
+        var isSolid = S.shape === 'cuboid' || S.shape === 'cube' || S.shape === 'triPrism' || S.shape === 'pyramidFrustum';
+        var isRing = S.shape === 'cylinder' || S.shape === 'cone' || S.shape === 'frustum';
+        var back = [], front = [];
+        data.edges.forEach(function (L) {
+          // 用旋转前的原始 y 坐标判断：两端 y 相同 → 圆环（边）；y 不同 → 母线/竖棱（结构线）
+          var isEdge = isSolid || (isRing && Math.abs(L[0][1] - L[1][1]) < 1e-9);
+          var p1 = P(L[0]), p2 = P(L[1]);
+          ((p1.z + p2.z) / 2 > 0 ? front : back).push({ p1: p1, p2: p2, isEdge: isEdge });
+        });
+        back.forEach(function (L) {
+          H.line(L.p1.x, L.p1.y, L.p2.x, L.p2.y, L.isEdge ? '#94a3b8' : '#e2e8f0', L.isEdge ? 1.6 : 1.2);
+        });
+        front.forEach(function (L) {
+          H.line(L.p1.x, L.p1.y, L.p2.x, L.p2.y, L.isEdge ? '#2563eb' : '#cbd5e1', L.isEdge ? 3 : 2);
+        });
+      },
+      formulas: function (S) {
+        var info = SHAPE_INFO[S.shape];
+        setMath(fEq, info.volL, info.volP);
+        setMath(fC, info.surfL, info.surfP);
+        if (info.euler === null) {
+          setMath(fE, '\\text{旋转体含曲面，}V-E+F\\text{不适用}', '旋转体含曲面，V−E+F 不适用');
+        } else {
+          setMath(fE, 'V-E+F=' + info.euler + '\\ (\\text{欧拉公式})', '欧拉公式：V−E+F = ' + info.euler);
+        }
+        fNote.textContent = info.note;
+        setTable([
+          ['几何体', info.name],
+          ['顶点数 V', String(info.V)], ['棱数 E', String(info.E)], ['面数 F', String(info.F)],
+          ['V−E+F', info.euler === null ? '—' : String(info.euler)],
+          ['体积', info.volP.replace('V = ', '')],
+          ['表面积', info.surfP.replace('S = ', '')]
+        ]);
+      },
+      canvasNote: function () { return '拖动「绕Y轴 / 绕X轴旋转」从任意角度观察立体图形'; },
+      hint: '两个旋转滑块可从任意角度观察几何体；切换形状对比顶点/棱/面与欧拉公式。'
+    },
+
+    /* ---------- 数列与代数 ---------- */
+    {
+      id: 'arith', name: '等差数列', cat: '数列与代数',
+      params: [
+        { key: 'a1', label: '首项 a₁', min: -8, max: 8, step: 0.5, def: 1, cap: 'n = 1 时的项值' },
+        { key: 'd', label: '公差 d', min: -3, max: 3, step: 0.1, def: 1.5, cap: '相邻两项之差' }
+      ],
+      defaults: { a1: 1, d: 1.5 },
+      draw: function (S) {
+        // 模型：aₙ = a₁ + (n−1)d（n = 1..10）
+        var pts = [], ys = [];
+        for (var n = 1; n <= 10; n++) { var y = S.a1 + (n - 1) * S.d; pts.push({ x: n, y: y }); ys.push(y); }
+        var ymin = Math.min.apply(null, ys), ymax = Math.max.apply(null, ys);
+        if (ymax - ymin < 4) { var mid = (ymax + ymin) / 2; ymin = mid - 2; ymax = mid + 2; }
+        var pad = (ymax - ymin) * 0.18; ymin -= pad; ymax += pad;
+        H.setViewRect(0.2, 11, ymin, ymax); H.grid(); H.axes();
+        H.poly(pts, '#2563eb', 2.5);
+        pts.forEach(function (p) { H.dot(p.x, p.y, 6, '#2563eb', '', 0, 0, '', 0); });
+        H.dot(pts[0].x, pts[0].y, 7, '#dc2626', 'a₁', 0.4, 0.4, '#b91c1c', 16, true);
+        H.dot(pts[9].x, pts[9].y, 7, '#0f766e', 'a₁₀', 0.4, 0.4, '#0f766e', 16, true);
+      },
+      formulas: function (S) {
+        var d = S.d, a1 = S.a1;
+        setMath(fEq, 'a_{n}=a_{1}+(n-1)d=' + fmt(a1) + '+' + fmt(d) + '(n-1)',
+          'aₙ = a₁ + (n−1)d = ' + fmt(a1) + ' + ' + fmt(d) + '(n−1)');
+        setMath(fC, '\\text{公差}d=' + fmt(d) + ',\\ a_{5}=' + fmt(a1 + 4 * d) + ',\\ a_{10}=' + fmt(a1 + 9 * d),
+          '公差 d=' + fmt(d) + '，a₅=' + fmt(a1 + 4 * d) + '，a₁₀=' + fmt(a1 + 9 * d));
+        setMath(fE, 'S_{n}=na_{1}+\\frac{n(n-1)}{2}d', 'Sₙ = n·a₁ + n(n−1)d/2');
+        fNote.textContent = d > 0 ? 'd>0：递增数列' : (d < 0 ? 'd<0：递减数列' : 'd=0：常数列');
+        setTable([
+          ['首项 a₁', fmt(a1)], ['公差 d', fmt(d)],
+          ['a₅', fmt(a1 + 4 * d)], ['a₁₀', fmt(a1 + 9 * d)],
+          ['S₁₀', fmt(10 * a1 + 45 * d)],
+          ['增减性', d > 0 ? '递增' : (d < 0 ? '递减' : '常数列')]
+        ]);
+      },
+      hint: '图像为共线点列（一次函数形态）：d>0 递增、d<0 递减、d=0 常数列。'
+    },
+
+    {
+      id: 'geom', name: '等比数列', cat: '数列与代数',
+      params: [
+        { key: 'a1', label: '首项 a₁', min: -8, max: 8, step: 0.5, def: 1, cap: 'n = 1 时的项值' },
+        { key: 'q', label: '公比 q', min: -2.5, max: 2.5, step: 0.1, def: 1.5, cap: '相邻两项之比' }
+      ],
+      defaults: { a1: 1, q: 1.5 },
+      draw: function (S) {
+        // 模型：aₙ = a₁·q^(n−1)（n = 1..10）
+        var pts = [], ys = [];
+        for (var n = 1; n <= 10; n++) { var y = S.a1 * Math.pow(S.q, n - 1); pts.push({ x: n, y: y }); ys.push(y); }
+        var ymin = Math.min.apply(null, ys), ymax = Math.max.apply(null, ys);
+        if (ymax - ymin < 4) { var mid = (ymax + ymin) / 2; ymin = mid - 2; ymax = mid + 2; }
+        var pad = (ymax - ymin) * 0.18; ymin -= pad; ymax += pad;
+        H.setViewRect(0.2, 11, ymin, ymax); H.grid(); H.axes();
+        H.poly(pts, '#2563eb', 2.5);
+        pts.forEach(function (p) { H.dot(p.x, p.y, 6, '#2563eb', '', 0, 0, '', 0); });
+        H.dot(pts[0].x, pts[0].y, 7, '#dc2626', 'a₁', 0.4, 0.4, '#b91c1c', 16, true);
+        H.dot(pts[9].x, pts[9].y, 7, '#0f766e', 'a₁₀', 0.4, 0.4, '#0f766e', 16, true);
+      },
+      formulas: function (S) {
+        var q = S.q, a1 = S.a1;
+        setMath(fEq, 'a_{n}=a_{1}q^{n-1}=' + fmt(a1) + '\\times' + fmt(q) + '^{n-1}',
+          'aₙ = a₁·q^(n−1) = ' + fmt(a1) + ' × ' + fmt(q) + '^(n−1)');
+        setMath(fC, '\\text{公比}q=' + fmt(q) + ',\\ a_{5}=' + fmt(a1 * Math.pow(q, 4)) + ',\\ a_{10}=' + fmt(a1 * Math.pow(q, 9)),
+          '公比 q=' + fmt(q) + '，a₅=' + fmt(a1 * Math.pow(q, 4)) + '，a₁₀=' + fmt(a1 * Math.pow(q, 9)));
+        setMath(fE, 'S_{n}=\\frac{a_{1}(1-q^{n})}{1-q}\\ (q\\ne1)', 'Sₙ = a₁(1−qⁿ)/(1−q)（q≠1）');
+        fNote.textContent = Math.abs(q) > 1 ? '|q|>1：绝对值递增发散' : (Math.abs(q) < 1 ? '0<|q|<1：绝对值递减趋于 0' : '|q|=1：绝对值不变');
+        setTable([
+          ['首项 a₁', fmt(a1)], ['公比 q', fmt(q)],
+          ['a₅', fmt(a1 * Math.pow(q, 4))], ['a₁₀', fmt(a1 * Math.pow(q, 9))],
+          ['趋势', Math.abs(q) > 1 ? '发散' : (Math.abs(q) < 1 ? '趋于 0' : '不变')],
+          ['符号', q < 0 ? '正负交替' : '不交替']
+        ]);
+      },
+      hint: '图像为指数型点列：|q|>1 发散、0<|q|<1 趋于 0、q<0 正负交替。'
+    },
+
+    {
+      id: 'ineq', name: '基本不等式', cat: '数列与代数',
+      params: [
+        { key: 'a', label: '长度 a', min: 0.5, max: 6, step: 0.1, def: 3, cap: '直径分段的左段' },
+        { key: 'b', label: '长度 b', min: 0.5, max: 6, step: 0.1, def: 2, cap: '直径分段的右段' }
+      ],
+      defaults: { a: 3, b: 2 },
+      draw: function (S) {
+        var a = S.a, b = S.b, R = (a + b) / 2;       // 半径：(a+b)/2
+        var cx = (a - b) / 2, dY = Math.sqrt(a * b); // C 点横坐标、半弦 CD = √(ab)：模型计算
+        H.setViewRect(-R - 1.4, R + 1.4, -1.4, R + 1.4);
+        H.grid(); H.axes();
+        // 半圆（圆心 O(0,0)，半径 R）
+        ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 3.5;
+        ctx.beginPath(); ctx.arc(H.X(0), H.Y(0), R * H.V.scale, 0, Math.PI); ctx.stroke();
+        // 直径 AB、半径 OD、半弦 CD
+        H.line(-R, 0, R, 0, '#334155', 2);
+        H.line(0, 0, 0, R, '#d97706', 2, [6, 4]);
+        H.line(cx, 0, cx, dY, '#dc2626', 2, [6, 4]);
+        // 标注点
+        H.dot(-R, 0, 5, '#334155', 'A', -0.35, -0.35, '#334155', 16);
+        H.dot(R, 0, 5, '#334155', 'B', 0.35, -0.35, '#334155', 16);
+        H.dot(cx, 0, 5, '#334155', 'C', 0, -0.38, '#334155', 16);
+        H.dot(0, 0, 5, '#d97706', 'O', -0.42, -0.32, '#b45309', 16);
+        H.dot(0, R, 5, '#d97706', 'D', 0.35, 0.32, '#b45309', 16);
+        H.dot(cx, dY, 5.5, '#dc2626', '', 0, 0, '', 0);
+        // 长度标注
+        H.text((cx - R) / 2, 0.32, 'a=' + fmt(a), { color: '#475569', size: 16 });
+        H.text((R + cx) / 2, 0.32, 'b=' + fmt(b), { color: '#475569', size: 16 });
+        H.text(cx + 0.35, dY / 2, '√(ab)=' + fmt2(dY), { color: '#b91c1c', size: 15, align: 'left' });
+        H.text(0.4, R / 2, 'R=' + fmt2(R), { color: '#b45309', size: 15, align: 'left' });
+      },
+      formulas: function (S) {
+        var a = S.a, b = S.b, R = (a + b) / 2, g = Math.sqrt(a * b);
+        setMath(fEq, '\\frac{a+b}{2}\\geq\\sqrt{ab}', '(a+b)/2 ≥ √(ab)');
+        setMath(fC, '\\frac{a+b}{2}=\\frac{' + fmt(a) + '+' + fmt(b) + '}{2}=' + fmt2(R),
+          '(a+b)/2 = (' + fmt(a) + '+' + fmt(b) + ')/2 = ' + fmt2(R));
+        setMath(fE, '\\sqrt{ab}=\\sqrt{' + fmt(a) + '\\times' + fmt(b) + '}\\approx ' + fmt2(g),
+          '√(ab) = √(' + fmt(a) + '×' + fmt(b) + ') ≈ ' + fmt2(g));
+        fNote.textContent = Math.abs(R - g) < 0.01 ? 'a = b：已取等号' : '当且仅当 a = b 时取等号（当前差 ' + fmt2(R - g) + '）';
+        setTable([
+          ['a', fmt(a)], ['b', fmt(b)],
+          ['R = (a+b)/2', fmt2(R)], ['√(ab)', fmt2(g)],
+          ['R − √(ab)', fmt2(R - g)],
+          ['取等条件', Math.abs(R - g) < 0.01 ? '已取等（a=b）' : 'a = b']
+        ]);
+      },
+      hint: '半圆演示：半径 R=(a+b)/2 ≥ 半弦 CD=√(ab)，当且仅当 a=b 取等。'
+    },
+
+    /* ---------- 统计与导数 ---------- */
+    {
+      id: 'normal', name: '正态分布', cat: '统计与导数',
+      params: [
+        { key: 'mu', label: '均值 μ', min: -3, max: 3, step: 0.1, def: 0, cap: '决定对称轴位置' },
+        { key: 's', label: '标准差 σ', min: 0.2, max: 3, step: 0.05, def: 1, cap: '决定曲线胖瘦' }
+      ],
+      defaults: { mu: 0, s: 1 },
+      draw: function (S) {
+        var mu = S.mu, s = S.s, peak = 1 / (s * Math.sqrt(2 * Math.PI));   // 峰高：模型计算
+        // 模型：f(x) = 1/(σ√(2π)) · e^(−(x−μ)²/(2σ²))
+        var f = function (x) { return Math.exp(-(x - mu) * (x - mu) / (2 * s * s)) / (s * Math.sqrt(2 * Math.PI)); };
+        H.setViewRect(-5.2, 5.2, 0, peak * 1.4);
+        H.grid(); H.axes();
+        H.fillUnder(f, mu - s, mu + s, 'rgba(37,99,235,0.15)');   // μ±σ 区域
+        H.plot(f, '#2563eb', 3.5);
+        H.line(mu, 0, mu, peak, '#d97706', 2, [6, 4]);            // 对称轴
+        H.dot(mu, peak, 6, '#dc2626', '峰 (' + fmt(mu) + ', ' + fmt2(peak) + ')', 0.5, 0.4, '#b91c1c', 15);
+        // μ±σ、μ±2σ、μ±3σ 竖线
+        var labels = ['−3σ', '−2σ', '−σ', 'σ', '2σ', '3σ'];
+        var xs = [mu - 3 * s, mu - 2 * s, mu - s, mu + s, mu + 2 * s, mu + 3 * s];
+        for (var i = 0; i < 6; i++) {
+          H.line(xs[i], 0, xs[i], f(xs[i]), 'rgba(100,116,139,0.6)', 1.4, [4, 4]);
+          H.text(xs[i], f(xs[i]) * 0.42, labels[i], { color: '#64748b', size: 13 });
+        }
+      },
+      formulas: function (S) {
+        var mu = S.mu, s = S.s, peak = 1 / (s * Math.sqrt(2 * Math.PI));
+        var muS = mu > 0 ? '(x-' + fmt(mu) + ')' : (mu < 0 ? '(x+' + fmt(-mu) + ')' : 'x');
+        setMath(fEq, 'f(x)=\\frac{1}{\\sigma\\sqrt{2\\pi}}e^{-\\frac{(x-\\mu)^{2}}{2\\sigma^{2}}}',
+          'f(x) = 1/(σ√(2π)) · e^(−(x−μ)²/(2σ²))');
+        setMath(fC, 'f(x)=\\frac{1}{' + fmt(s) + '\\sqrt{2\\pi}}e^{-\\frac{' + muS + '^{2}}{' + fmt(2 * s * s) + '}},\\ \\text{峰高}\\approx ' + fmt2(peak),
+          'f(x) = 1/(' + fmt(s) + '√(2π)) · e^(−' + muS + '²/' + fmt(2 * s * s) + ')，峰高 ≈ ' + fmt2(peak));
+        setMath(fE, '\\text{对称轴}x=' + fmt(mu) + ',\\ \\sigma\\text{越大曲线越矮胖}',
+          '对称轴 x = ' + fmt(mu) + '，σ 越大曲线越矮胖');
+        fNote.textContent = '3σ 原则：P(|X−μ|<σ)≈68.3%，P(|X−μ|<2σ)≈95.4%，P(|X−μ|<3σ)≈99.7%';
+        setTable([
+          ['均值 μ', fmt(mu)], ['标准差 σ', fmt(s)], ['方差 σ²', fmt(s * s)],
+          ['峰高', fmt2(peak)], ['对称轴', 'x = ' + fmt(mu)],
+          ['拐点', 'x = ' + fmt(mu - s) + ' 与 x = ' + fmt(mu + s)]
+        ]);
+      },
+      hint: 'μ 决定曲线位置、σ 决定胖瘦；蓝色区域为 μ±σ 区间（约占 68.3%）。'
+    },
+
+    {
+      id: 'derivative', name: '导数与切线', cat: '统计与导数',
+      params: [
+        { key: 'expr', type: 'text', label: '函数 f(x)', def: 'x^3-3*x',
+          cap: '支持 x、^、+ - * /、sin cos tan、ln lg sqrt abs、pi、e；输入后按回车确认' },
+        { key: 'x0', label: '切点横坐标 x₀', min: -8, max: 8, step: 0.05, def: 1.5, cap: '范围 -8 ~ 8，横轴视野自动跟随' }
+      ],
+      defaults: { expr: 'x^3-3*x', x0: 1.5, fn: null, err: '' },
+      compile: function (st) {
+        // 用户输入表达式 → 可执行函数（模型计算入口）
+        var res = compileFn(st.expr);
+        st.fn = res.fn; st.err = res.err;
+      },
+      draw: function (S) {
+        if (!S.fn) {
+          // 表达式有误：画布上提示，不画图
+          H.setView(12, 12); H.grid(); H.axes();
+          H.text(0, 0, '请输入正确的函数表达式（按回车确认）', { color: '#dc2626', size: 19, bold: true });
+          return;
+        }
+        // 绘制用户函数图像（视野跟随切点 x₀，纵轴自适应）
+        drawUserFnGraph(S, true);
+        var x0 = S.x0, y0 = S.fn(x0);
+        if (!isFinite(y0)) return;   // 切点不在定义域内，只画曲线
+        var k = numDeriv(S.fn, x0);  // 数值求导：模型计算 f′(x₀)
+        // 切线：y = f′(x₀)(x−x₀) + f(x₀)，两端延伸到当前视口边缘
+        var V = H.V;
+        H.line(V.xmin, k * (V.xmin - x0) + y0, V.xmax, k * (V.xmax - x0) + y0, '#d97706', 3);
+        H.dot(x0, y0, 7, '#059669', 'P(' + fmt(x0) + ', ' + fmt(y0) + ')', 0.45, 0.45, '#047857', 17, true);
+      },
+      formulas: function (S) {
+        if (!S.fn) {
+          fEq.textContent = '函数表达式有误，请修改后按回车确认';
+          fC.innerHTML = ''; fE.innerHTML = '';
+          fNote.textContent = '支持：x、^、+、−、*、/、sin()、cos()、tan()、ln()、lg()、sqrt()、abs()、pi、e；乘法必须写 *';
+          setTable([
+            ['当前输入', S.expr],
+            ['示例', 'x^2、sin(x)、x^3-3*x、sqrt(x+2)、2^x、ln(x)']
+          ]);
+          return;
+        }
+        var f = S.fn, x0 = S.x0, y0 = f(x0);
+        var k = isFinite(y0) ? numDeriv(f, x0) : NaN;
+        setMath(fEq, 'f(x)=' + fnToLatex(S.expr), 'f(x) = ' + S.expr);
+        setMath(fC, '\\text{切点}P(' + fmt(x0) + ',' + (isFinite(y0) ? fmt(y0) : '—') + '),\\ \\text{斜率}k=f\'(x_{0})\\approx' + (isFinite(k) ? fmt2(k) : '—'),
+          '切点 P(' + fmt(x0) + ', ' + (isFinite(y0) ? fmt(y0) : '—') + ')，斜率 k = f′(x₀) ≈ ' + (isFinite(k) ? fmt2(k) : '—'));
+        setMath(fE, isFinite(k)
+            ? '\\text{切线：}y=' + fmt(k) + '(x-' + fmt(x0) + ')' + (y0 >= 0 ? '+' + fmt(y0) : '-' + fmt(-y0))
+            : '\\text{切线不可作（切点不在定义域内）}',
+          isFinite(k)
+            ? '切线：y = ' + fmt(k) + '(x−' + fmt(x0) + ')' + (y0 >= 0 ? '+' + fmt(y0) : '−' + fmt(-y0))
+            : '切线不可作（切点不在定义域内）');
+        fNote.textContent = '数值求导：f′(x₀) ≈ [f(x₀+h) − f(x₀−h)] / (2h)，h 取很小的数';
+        setTable([
+          ['表达式', S.expr],
+          ['x₀', fmt(x0)],
+          ['f(x₀)', isFinite(y0) ? fmt(y0) : '—'],
+          ['f′(x₀) ≈', isFinite(k) ? fmt2(k) : '—'],
+          ['切线方程', isFinite(k) ? 'y = ' + fmt(k) + 'x ' + (y0 - k * x0 >= 0 ? '+' + fmt(y0 - k * x0) : '-' + fmt(k * x0 - y0)) : '—']
+        ]);
+      },
+      hint: '在输入框键入任意函数（回车确认）即可生成图像；拖动 x₀ 观察切线斜率 f′(x₀) 的变化。'
+    }
+  ];
+
+  /* ================================================================
+     ⑦ 状态初始化：为每个模型建立独立参数状态
+     ================================================================ */
+  REGISTRY.forEach(function (m) {
+    states[m.id] = deepCopy(m.defaults);
+    if (m.compile) m.compile(states[m.id]);   // 预编译用户输入型函数（如导数模型）
+  });
+
+  function current() {
+    return REGISTRY.filter(function (m) { return m.id === currentId; })[0];
+  }
+  function S() { return states[currentId]; }
+
+  /* ================================================================
+     ⑧ 面板构建与控件绑定
+     ================================================================ */
+  function chkRow(key, label, checked, onChange) {
+    var lab = document.createElement('label');
+    lab.className = 'chk';
+    var inp = document.createElement('input');
+    inp.type = 'checkbox'; inp.checked = checked;
+    inp.addEventListener('change', function () { onChange(inp.checked); });
+    lab.appendChild(inp);
+    lab.appendChild(document.createTextNode(label));
+    return lab;
+  }
+
+  function paintSlider(el) {
+    var p = (el.value - el.min) / (el.max - el.min) * 100;
+    el.style.background = 'linear-gradient(to right, #2563eb ' + p + '%, #dbe3ee ' + p + '%)';
+  }
+
+  /** 把当前模型参数值同步回滑块/数值显示（含联动钳制） */
+  function syncSliderValues(m) {
+    m.params.forEach(function (p) {
+      var el = document.getElementById('sl_' + p.key);
+      if (!el) return;
+      el.value = S()[p.key];   // range 与 select 通用
+      // 注意：必须限定 type='range'——文本输入框(type='text')的 tagName 也是 INPUT，
+      //       若误入此分支会对字符串执行 fmt() 抛异常，导致滑块拖动中断（图像无响应）
+      if (el.tagName === 'INPUT' && el.type === 'range') {
+        if (m.id === 'ellipse' && p.key === 'b') el.max = S().a;   // 椭圆：b 的上限跟随 a
+        var vEl = document.getElementById('val_' + p.key);
+        if (vEl) vEl.textContent = fmt(S()[p.key]);
+        paintSlider(el);
+      }
+    });
+  }
+
+  function buildPanel() {
+    var m = current(), st = S();
+    panel.innerHTML = '';
+    var title = document.createElement('div');
+    title.className = 'panel-title';
+    title.textContent = m.cat + ' · ' + m.name;
+    panel.appendChild(title);
+
+    // 全局开关：显示网格
+    panel.appendChild(chkRow('grid', '显示网格', gridOn, function (v) { gridOn = v; draw(); }));
+
+    // 模型专属复选框
+    (m.checks || []).forEach(function (c) {
+      panel.appendChild(chkRow(c.key, c.label, st[c.key], function (v) {
+        S()[c.key] = v;   // 注意：重置按钮会替换状态对象，必须实时取 S()，不能用闭包捕获的 st
+        if (c.key === 'demo' && v) ensureDemoLoop();
+        draw();
+      }));
+    });
+
+    // 参数控件（滑块 / 下拉选择）
+    m.params.forEach(function (p) {
+      var div = document.createElement('div');
+      div.className = 'ctrl';
+      var head = document.createElement('div');
+      head.className = 'ctrl-head';
+      var lab = document.createElement('label');
+      lab.htmlFor = 'sl_' + p.key; lab.textContent = p.label;
+      head.appendChild(lab);
+      var cap = document.createElement('div');
+      cap.className = 'ctrl-cap'; cap.textContent = p.cap || '';
+      div.appendChild(head);
+
+      if (p.type === 'select') {
+        // 下拉选择（如 3D 模型的几何体形状）
+        var sel = document.createElement('select');
+        sel.id = 'sl_' + p.key;
+        p.options.forEach(function (o) {
+          var op = document.createElement('option');
+          op.value = o.v; op.textContent = o.label;
+          if (o.v === st[p.key]) op.selected = true;
+          sel.appendChild(op);
+        });
+        sel.addEventListener('change', function () {
+          S()[p.key] = this.value;
+          refresh();
+        });
+        div.appendChild(sel);
+      } else if (p.type === 'text') {
+        // 文本输入（如导数模型的自定义函数表达式）
+        var tin = document.createElement('input');
+        tin.type = 'text'; tin.id = 'sl_' + p.key;
+        tin.className = 'exprInput'; tin.value = st[p.key];
+        tin.spellcheck = false;
+        tin.addEventListener('change', function () {
+          S()[this.id.slice(3)] = this.value;   // 控件 id = 'sl_' + key
+          if (m.compile) m.compile(S());        // 重新编译函数表达式
+          refresh();
+        });
+        tin.addEventListener('keydown', function (e) { if (e.key === 'Enter') this.blur(); });
+        div.appendChild(tin);
+      } else if (p.type === 'textarea') {
+        // 多行文本输入（多函数图像模型用：每行一个函数）
+        var ta = document.createElement('textarea');
+        ta.id = 'sl_' + p.key;
+        ta.className = 'exprInput';
+        ta.rows = Math.max(3, String(st[p.key] || '').split('\n').length + 1);
+        ta.value = st[p.key];
+        ta.spellcheck = false;
+        ta.addEventListener('change', function () {
+          S()[this.id.slice(3)] = this.value;
+          if (m.compile) m.compile(S());
+          refresh();
+        });
+        ta.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) this.blur();   // Ctrl+Enter 确认
+        });
+        div.appendChild(ta);
+      } else {
+        var val = document.createElement('span');
+        val.className = 'val'; val.id = 'val_' + p.key; val.textContent = fmt(st[p.key]);
+        head.appendChild(val);
+        var inp = document.createElement('input');
+        inp.type = 'range'; inp.id = 'sl_' + p.key;
+        inp.min = p.min; inp.max = p.max; inp.step = p.step; inp.value = st[p.key];
+        inp.dataset.key = p.key;
+        inp.addEventListener('input', function () {
+          S()[this.dataset.key] = parseFloat(this.value);   // 实时取 S()，避免闭包捕获旧状态对象
+          if (m.adjust) m.adjust(S());            // 参数联动/越界修正
+          syncSliderValues(m);                   // 回写被修正的值与滑块上限
+          refresh();
+        });
+        div.appendChild(inp);
+        paintSlider(inp);
+      }
+      div.appendChild(cap);
+      panel.appendChild(div);
+    });
+
+    // 重置按钮
+    var btn = document.createElement('button');
+    btn.id = 'btnReset'; btn.textContent = '重 置 参 数';
+    btn.addEventListener('click', function () {
+      states[m.id] = deepCopy(m.defaults);   // 恢复该模型的默认参数
+      if (m.compile) m.compile(states[m.id]);   // 重新编译函数表达式
+      syncSliderValues(m);
+      // 复选框状态同步
+      Array.prototype.forEach.call(panel.querySelectorAll('input[type="checkbox"]'), function (cb) {
+        var row = cb.parentNode;
+        if (row.textContent.indexOf('显示网格') >= 0) cb.checked = gridOn;
+        else if (m.checks) {
+          m.checks.forEach(function (c) {
+            if (row.textContent.indexOf(c.label) >= 0) cb.checked = states[m.id][c.key];
+          });
+        }
+      });
+      if (m.tick && states[m.id].demo) ensureDemoLoop();
+      resetView();   // 重置参数的同时恢复默认视图
+      refresh();
+    });
+    panel.appendChild(btn);
+
+    // 使用说明
+    var hint = document.createElement('div');
+    hint.className = 'hint'; hint.textContent = m.hint || DEFAULT_NOTE;
+    panel.appendChild(hint);
+  }
+
+  /* ================================================================
+     ⑨ 模型导航（分类 + 按钮）
+     ================================================================ */
+  var CATS = ['基本函数', '三角函数', '圆锥曲线', '立体几何', '数列与代数', '统计与导数'];
+  var activeCat = '圆锥曲线';
+  var catRow = document.getElementById('catRow');
+  var modelRow = document.getElementById('modelRow');
+
+  function buildNav() {
+    catRow.innerHTML = ''; modelRow.innerHTML = '';
+    CATS.forEach(function (cat) {
+      var b = document.createElement('button');
+      b.className = 'catBtn'; b.textContent = cat;
+      if (cat === activeCat) b.classList.add('active');
+      b.addEventListener('click', function () {
+        activeCat = cat;
+        Array.prototype.forEach.call(catRow.children, function (el) {
+          el.classList.toggle('active', el.textContent === activeCat);
+        });
+        buildModelButtons();
+      });
+      catRow.appendChild(b);
+    });
+    buildModelButtons();
+  }
+  function buildModelButtons() {
+    modelRow.innerHTML = '';
+    REGISTRY.filter(function (m) { return m.cat === activeCat; }).forEach(function (m) {
+      var b = document.createElement('button');
+      b.className = 'modelBtn'; b.textContent = m.name;
+      if (m.id === currentId) b.classList.add('active');
+      b.addEventListener('click', function () { switchModel(m.id); });
+      modelRow.appendChild(b);
+    });
+  }
+  function switchModel(id) {
+    currentId = id;
+    activeCat = current().cat;
+    Array.prototype.forEach.call(catRow.children, function (el) {
+      el.classList.toggle('active', el.textContent === activeCat);
+    });
+    buildModelButtons();
+    buildPanel();
+    refresh();
+    resetView();   // 切换模型后恢复该模型的默认取景
+    // 切回带演示动画的模型时，若勾选仍在，恢复动点运动
+    var mm = current();
+    if (mm.tick && states[id].demo) ensureDemoLoop();
+  }
+
+  /* ================================================================
+     ⑩ 主绘制与公式刷新
+     ================================================================ */
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var w = wrap.clientWidth, h = wrap.clientHeight;
+    if (w === 0 || h === 0) return false;
+    var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw; canvas.height = bh;
+      return true;
+    }
+    return false;
+  }
+
+  function draw() {
+    resizeCanvas();
+    var W = canvas.width, Hh = canvas.height;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, Hh);
+    var m = current();
+    m.draw(S());
+    // 左下角提示（模型可自定义；椭圆演示时在 draw 内直接写入）
+    if (m.canvasNote) {
+      var t = m.canvasNote(S());
+      if (t !== null) noteEl.textContent = t;
+    }
+  }
+
+  function updateFormulas() {
+    // 先清空，再填当前模型的公式
+    fEq.innerHTML = ''; fC.innerHTML = ''; fE.innerHTML = ''; fNote.textContent = '';
+    vtBody.innerHTML = '';
+    current().formulas(S());
+    typeset();
+  }
+  function refresh() { draw(); updateFormulas(); }
+
+  /* ================================================================
+     ⑪ 演示动画循环（椭圆/双曲线动点 P 等：模型定义 tick(S, dt)
+         且勾选了 demo 复选框时运行）
+     ================================================================ */
+  var rafId = null, lastTs = 0;
+  function ensureDemoLoop() {
+    if (rafId === null) { lastTs = performance.now(); rafId = requestAnimationFrame(rafLoop); }
+  }
+  function rafLoop(ts) {
+    rafId = null;
+    var m = current();
+    // 通用演示循环：模型定义 tick(S, dt) 且其 demo 勾选时驱动动画
+    if (m.tick && S().demo) {
+      var dt = (ts - lastTs) / 1000;
+      lastTs = ts;
+      m.tick(S(), dt);
+      draw();
+      ensureDemoLoop();
+    }
+  }
+
+  /* ---- 点击/拖动画布：把椭圆演示点 P 移到对应位置 ---- */
+  function canvasToWorld(e) {
+    var rect = canvas.getBoundingClientRect();
+    var cx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var cy = (e.clientY - rect.top) * (canvas.height / rect.height);
+    var V = H.V;
+    return { x: (cx - V.ox) / V.scale, y: (V.oy - cy) / V.scale };
+  }
+  /* ---- 视图交互：拖拽平移视图；单击（未拖动）时放置椭圆演示点 P ---- */
+  var dragStart = null, dragPan0 = null, dragMoved = false;
+  canvas.addEventListener('pointerdown', function (e) {
+    var rect = canvas.getBoundingClientRect();
+    dragStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    dragPan0 = { x: viewPanX, y: viewPanY };
+    dragMoved = false;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!dragStart) return;
+    var rect = canvas.getBoundingClientRect();
+    var dx = (e.clientX - rect.left) - dragStart.x;
+    var dy = (e.clientY - rect.top) - dragStart.y;
+    if (!dragMoved && Math.hypot(dx, dy) > 5) dragMoved = true;   // 超过 5px 视为拖拽
+    if (dragMoved) {
+      viewPanX = dragPan0.x + dx;
+      viewPanY = dragPan0.y + dy;
+      draw();
+    }
+  });
+  canvas.addEventListener('pointerup', function (e) {
+    if (dragStart && !dragMoved) placeDemoPoint(e);   // 单击：放置椭圆演示点 P
+    dragStart = null;
+  });
+
+  /* ---- 滚轮缩放（以鼠标位置为锚点） ---- */
+  canvas.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    var V = H.V;
+    var wx = (mx - V.ox) / V.scale, wy = (V.oy - my) / V.scale;   // 锚点世界坐标
+    var f = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+    var nz = viewZoom * f;
+    if (nz < 0.1 || nz > 20) return;                               // 缩放范围限制
+    var ns = H.baseV.scale * nz;
+    viewZoom = nz;
+    viewPanX = mx - wx * ns - H.baseV.ox;
+    viewPanY = my + wy * ns - H.baseV.oy;
+    draw();
+  }, { passive: false });
+
+  /** 恢复默认视图（各模型各自的初始取景） */
+  function resetView() {
+    viewZoom = 1; viewPanX = 0; viewPanY = 0;
+    draw();
+  }
+  /** 以画布中心为锚点缩放（＋/－按钮用） */
+  function zoomAtCenter(f) {
+    var V = H.V, W = canvas.width, Hh = canvas.height;
+    var wx = (W / 2 - V.ox) / V.scale, wy = (V.oy - Hh / 2) / V.scale;
+    var nz = viewZoom * f;
+    if (nz < 0.1 || nz > 20) return;
+    var ns = H.baseV.scale * nz;
+    viewZoom = nz;
+    viewPanX = W / 2 - wx * ns - H.baseV.ox;
+    viewPanY = Hh / 2 + wy * ns - H.baseV.oy;
+    draw();
+  }
+  document.getElementById('btnZoomIn').addEventListener('click', function () { zoomAtCenter(1.3); });
+  document.getElementById('btnZoomOut').addEventListener('click', function () { zoomAtCenter(1 / 1.3); });
+  document.getElementById('btnResetView').addEventListener('click', resetView);
+  // 坐标系显示开关：点击隐藏/显示坐标轴与网格，方便看图
+  var btnCoord = document.getElementById('btnCoord');
+  btnCoord.addEventListener('click', function () {
+    showCoord = !showCoord;
+    btnCoord.textContent = showCoord ? '隐藏坐标系' : '显示坐标系';
+    draw();
+  });
+  function placeDemoPoint(e) {
+    if (currentId !== 'ellipse') return;
+    var w = canvasToWorld(e);
+    var st = states.ellipse;
+    // 模型反解：t = atan2(y/b, x/a)，把点击位置投影到椭圆上
+    var t = Math.atan2(w.y / st.b, w.x / st.a);
+    if (isFinite(t)) { st.demoAngle = t; draw(); }
+  }
+
+  /* ================================================================
+     ⑫ 等待 MathJax 就绪（最多 4 秒；离线时降级为纯文本公式）
+     ================================================================ */
+  (function waitMath() {
+    var waited = 0;
+    (function tick() {
+      if (window.MathJax && MathJax.startup) {
+        MathJax.startup.promise.then(function () {
+          mathReady = true;
+          updateFormulas();   // 用当前参数重新排版一遍，保证与滑块一致
+        });
+      } else if (waited < 4000) {
+        waited += 200;
+        setTimeout(tick, 200);
+      } else {
+        mathReady = false;
+        updateFormulas();     // 离线：公式区显示纯文本
+      }
+    })();
+  })();
+
+  /* ================================================================
+     ⑬ 初始化
+     ================================================================ */
+  buildNav();
+  buildPanel();
+  refresh();
+  new ResizeObserver(function () { draw(); }).observe(wrap);
+
+  // 保存截图：把当前绘图区导出为 PNG 下载
+  document.getElementById('btnShot').addEventListener('click', function () {
+    var m = current();
+    var a = document.createElement('a');
+    a.download = '高中数学_' + m.name + '_' +
+      new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.png';
+    a.href = canvas.toDataURL('image/png');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+
+  // 公式区收放：点击标题条展开/收起（画布尺寸变化由 ResizeObserver 自动重绘）
+  document.getElementById('faToggle').addEventListener('click', function () {
+    var fa = document.getElementById('formulaArea');
+    var collapsed = fa.classList.toggle('collapsed');
+    document.getElementById('faArrow').textContent = collapsed ? '▲' : '▼';
+    draw();
+  });
+})();
+</script>
+</body>
+</html>
