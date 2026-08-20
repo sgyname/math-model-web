@@ -794,6 +794,11 @@
   // 隐式方程独立色组（与显式函数区分，多方程各自着色）
   var IMP_COLORS = ['#db2777', '#65a30d', '#0d9488', '#9333ea', '#ea580c', '#0369a1'];
 
+  /* ---- 画笔 / 选点连线共用色板：与多函数图像同套 8 色，保证全站颜色系统统一 ----
+     画笔笔迹、选点连线都从这套颜色中取色，用户只认一个色板 */
+  var MARK_COLORS = ['#2563eb', '#d97706', '#0f766e', '#dc2626', '#7c3aed', '#0891b2', '#65a30d', '#db2777'];
+  var MARK_COLOR_NAMES = ['宝蓝', '琥珀橙', '深青', '朱红', '紫色', '亮青', '草绿', '玫红'];
+
   /** 编译多个函数：按换行/分号拆分，每段编译为一个 {expr, fn, err}；另支持多个隐式方程 F(x,y)=0 */
   function compileMultiFn(st) {
     var parts = String(st.expr || '').split(/[;\n]+/).map(function (s) { return s.trim(); }).filter(Boolean);
@@ -2057,16 +2062,10 @@
           ], def: 'face', cap: '面内：点击几何体的哪个面就在哪个面内画；空间内：所见即所得'
         },
         {
-          key: 'penColor', type: 'select', label: '画笔颜色',
-          options: [
-            { v: '#f59e0b', label: '琥珀橙' },
-            { v: '#dc2626', label: '朱红' },
-            { v: '#16a34a', label: '翠绿' },
-            { v: '#7c3aed', label: '紫色' },
-            { v: '#0891b2', label: '青色' },
-            { v: '#db2777', label: '玫红' },
-            { v: '#1f2937', label: '墨黑' }
-          ], def: '#f59e0b', cap: '笔迹颜色（可多色分层标注）'
+          key: 'penColor', type: 'select', label: '画笔/连线颜色',
+          // 画笔与选点连线共用同一套色板（MARK_COLORS，与多函数图像一致），换色两边同时生效
+          options: MARK_COLORS.map(function (c, i) { return { v: c, label: MARK_COLOR_NAMES[i] }; }),
+          def: MARK_COLORS[0], cap: '画笔笔迹与选点连线共用的颜色（可多色分层标注）'
         },
         { key: 'clearPen', type: 'button', label: '清空笔迹' },
         { key: 'clearSeg', type: 'button', label: '清空连线' }
@@ -2076,7 +2075,7 @@
         { key: 'eraser', label: '橡皮擦模式（擦除笔迹）', def: false },
         { key: 'seg', label: '选点连线（点击两个顶点连线）', def: false }
       ],
-      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, penPlane: 'face', penFace: 0, penColor: '#f59e0b', penStrokes: [], segLines: [], segSel: null },
+      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, penPlane: 'face', penFace: 0, penColor: MARK_COLORS[0], penStrokes: [], segLines: [], segSel: null },
       buttonAction: function (st, key) {
         if (key === 'clearPen') st.penStrokes = [];
         else if (key === 'clearSeg') { st.segLines = []; st.segSel = null; }
@@ -2139,7 +2138,7 @@
           ctx.lineWidth = 2.5; ctx.setLineDash([]);
           S.penStrokes.forEach(function (seg) {
             if (!seg || !seg.pts || seg.pts.length < 2) return;
-            ctx.strokeStyle = seg.color || S.penColor || '#f59e0b';   // 每段用自己画时的颜色
+            ctx.strokeStyle = seg.color || S.penColor || MARK_COLORS[0];   // 每段用自己画时的颜色
             ctx.beginPath();
             seg.pts.forEach(function (pt, idx) {
               var pr = P(pt);
@@ -2152,23 +2151,23 @@
             if (!seg || !seg.pts || !seg.pts.length) return;
             var p0 = P(seg.pts[0]);
             ctx.beginPath(); ctx.arc(H.X(p0.x), H.Y(p0.y), 3.5, 0, Math.PI * 2);
-            ctx.fillStyle = seg.color || S.penColor || '#f59e0b';
+            ctx.fillStyle = seg.color || S.penColor || MARK_COLORS[0];
             ctx.fill();
           });
         }
-        // 选点连线（两点确定的线段，红色实线 + 端点圆点，随几何体旋转；画在最上层）
+        // 选点连线（两点确定的线段，颜色同画笔色板 + 端点圆点，随几何体旋转；画在最上层）
         if (S.segLines && S.segLines.length) {
           S.segLines.forEach(function (ln) {
             var p1 = P(ln.p1), p2 = P(ln.p2);
-            ctx.strokeStyle = ln.color || '#dc2626'; ctx.lineWidth = 2.8; ctx.setLineDash([]);
+            ctx.strokeStyle = ln.color || S.penColor || MARK_COLORS[0]; ctx.lineWidth = 2.8; ctx.setLineDash([]);
             ctx.beginPath(); ctx.moveTo(H.X(p1.x), H.Y(p1.y)); ctx.lineTo(H.X(p2.x), H.Y(p2.y)); ctx.stroke();
             [p1, p2].forEach(function (p) {
               ctx.beginPath(); ctx.arc(H.X(p.x), H.Y(p.y), 3.5, 0, Math.PI * 2);
-              ctx.fillStyle = ln.color || '#dc2626'; ctx.fill();
+              ctx.fillStyle = ln.color || S.penColor || MARK_COLORS[0]; ctx.fill();
             });
           });
         }
-        // 选点连线：当前选中的第一个点高亮圈
+        // 选点连线：当前选中的第一个点高亮圈（固定琥珀橙，与笔迹色板区分：表示"待连线的选中点"）
         if (S.segSel) {
           var pr = P(S.segSel);
           ctx.beginPath(); ctx.arc(H.X(pr.x), H.Y(pr.y), 7, 0, Math.PI * 2);
@@ -2199,8 +2198,8 @@
           // 状态感知：选中第 1 个顶点时提示下一步，否则显示已连线数（draw() 每次重绘都会刷新此提示）
           if (S.segSel) return '已选中第 1 个顶点，再点击第 2 个顶点完成连线';
           var n = S.segLines ? S.segLines.length : 0;
-          return n ? '选点连线：依次点击两个顶点连线（已连 ' + n + ' 条）；用「清空连线」清除'
-                    : '选点连线：依次点击两个顶点即可连线（红色）；可连多条，用「清空连线」清除';
+          return n ? '选点连线：依次点击两个顶点连线（已连 ' + n + ' 条，颜色同画笔色板）；用「清空连线」清除'
+                    : '选点连线：依次点击两个顶点即可连线（颜色同画笔色板）；可连多条，用「清空连线」清除';
         }
         if (S.pen) {
           if (S.penPlane === 'face') {
@@ -2821,7 +2820,7 @@
     var st = states.solid;
     if (!st.penStrokes) st.penStrokes = [];
     var seg = st.penStrokes[st.penStrokes.length - 1];
-    if (!seg) { seg = { color: st.penColor || '#f59e0b', pts: [] }; st.penStrokes.push(seg); }
+    if (!seg) { seg = { color: st.penColor || MARK_COLORS[0], pts: [] }; st.penStrokes.push(seg); }
     var rect = canvas.getBoundingClientRect();
     var sx = (e.clientX - rect.left) * (canvas.width / rect.width);
     var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
@@ -2884,7 +2883,7 @@
         st.segSel = vhit.pt;   // 记录第一个点（3D 坐标）
         noteEl.textContent = '已选中第 1 个顶点，再点击第 2 个顶点完成连线';
       } else {
-        st.segLines.push({ p1: st.segSel, p2: vhit.pt, color: st.penColor || '#dc2626' });
+        st.segLines.push({ p1: st.segSel, p2: vhit.pt, color: st.penColor || MARK_COLORS[0] });
         st.segSel = null;
         noteEl.textContent = '已连线 ' + st.segLines.length + ' 条（可继续选点连线）';
       }
@@ -2917,7 +2916,7 @@
       }
       if (!states.solid.penStrokes) states.solid.penStrokes = [];
       // 新的一段：记录当前画笔颜色，之后换色不影响已画笔迹（每段颜色独立）
-      states.solid.penStrokes.push({ color: states.solid.penColor || '#f59e0b', pts: [] });
+      states.solid.penStrokes.push({ color: states.solid.penColor || MARK_COLORS[0], pts: [] });
       canvas.setPointerCapture(e.pointerId);
       addPenPoint(e);
       draw();
