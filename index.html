@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -328,7 +328,7 @@
      ① 全局状态
      ================================================================ */
   var gridOn = true;                 // 是否显示网格（全局开关）
-  var currentId = 'ellipse';         // 当前模型 id
+  var currentId = 'linear';          // 当前模型 id（默认进入基本函数·一次函数）
   var states = {};                   // 各模型参数状态：states[模型id] = {参数...}
   var DEMO_SPEED = (2 * Math.PI) / 28;  // 椭圆演示点 P 的角速度（约 28 秒一圈）
   var DEFAULT_NOTE = '提示：拖动左侧滑块，观察图像与公式实时变化';
@@ -2337,7 +2337,7 @@
      ⑨ 模型导航（分类 + 按钮）
      ================================================================ */
   var CATS = ['基本函数', '三角函数', '圆锥曲线', '立体几何', '数列与代数', '统计与导数'];
-  var activeCat = '圆锥曲线';
+  var activeCat = '基本函数';
   var catRow = document.getElementById('catRow');
   var modelRow = document.getElementById('modelRow');
 
