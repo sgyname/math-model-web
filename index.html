@@ -209,27 +209,29 @@
   #btnReset:hover { background: var(--accent-strong); }
   #btnReset:active { transform: scale(.98); }
 
-  /* 日/夜间模式切换按钮（标题栏右侧，保存截图左边；🌙/☀️ 图标） */
+  /* 日/夜间模式切换按钮（标题栏右侧，保存截图左边；线性矢量图标：月亮/太阳） */
   #btnTheme {
     align-self: center; margin-left: auto;
-    font-size: 22px; line-height: 1;
     color: var(--accent); background: var(--accent-soft);
     border: 1px solid var(--border-strong); border-radius: 10px;
-    padding: 6px 14px; cursor: pointer;
+    padding: 7px 12px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
     transition: background .15s, transform .1s;
   }
+  #btnTheme svg { width: 22px; height: 22px; display: block; }
   #btnTheme:hover { background: var(--surface-2); }
   #btnTheme:active { transform: scale(.96); }
 
-  /* 保存截图按钮（标题栏右侧常驻） */
+  /* 保存截图按钮（标题栏右侧常驻；线性矢量图标：相机） */
   #btnShot {
     align-self: center;
-    font-size: 19px; font-weight: bold;
     color: var(--accent); background: var(--accent-soft);
     border: 1px solid var(--border-strong); border-radius: 10px;
-    padding: 8px 18px; cursor: pointer;
+    padding: 7px 12px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
     transition: background .15s, transform .1s;
   }
+  #btnShot svg { width: 22px; height: 22px; display: block; }
   #btnShot:hover { background: var(--surface-2); }
   #btnShot:active { transform: scale(.98); }
 
@@ -373,8 +375,10 @@
     header { padding: 6px 12px; gap: 8px; }
     header h1 { font-size: 20px; }
     header .sub { font-size: 13px; }
-    #btnShot { font-size: 14px; padding: 5px 10px; }
-    #btnTheme { font-size: 14px; padding: 5px 10px; }
+    #btnShot { padding: 5px 8px; }
+    #btnShot svg { width: 18px; height: 18px; }
+    #btnTheme { padding: 5px 8px; }
+    #btnTheme svg { width: 18px; height: 18px; }
     #nav { margin: 8px 8px 0; padding: 8px 10px; gap: 8px; }
     .nav-toggle { font-size: 15px; padding: 2px 4px; }
     .catBtn { font-size: 13px; padding: 3px 10px; }
@@ -439,8 +443,19 @@
 <!-- ================= 顶部标题 ================= -->
 <header>
   <h1>高中数学 · 动态数学模型</h1>
-  <button id="btnTheme" title="切换为夜间模式">🌙</button>
-  <button id="btnShot" title="把当前绘图区保存为 PNG 图片">保存截图</button>
+  <!-- 日/夜间模式切换（线性矢量图标：月亮=进入夜间，太阳=回到日间） -->
+  <button id="btnTheme" title="切换为夜间模式">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+  </button>
+  <!-- 保存截图（线性矢量图标：相机） -->
+  <button id="btnShot" title="把当前绘图区保存为 PNG 图片">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+      <circle cx="12" cy="13" r="4"/>
+    </svg>
+  </button>
 </header>
 
 <!-- ================= 模型导航 ================= -->
@@ -3306,13 +3321,15 @@
   new ResizeObserver(function () { draw(); }).observe(wrap);
 
   // 日/夜间模式：一键切换（页面 CSS 变量 + 画布主题色），记住上次选择
-  // 按钮图标：日间显示 🌙（点击进入夜间），夜间显示 ☀️（点击回到日间）
+  // 按钮图标：日间显示月亮（点击进入夜间），夜间显示太阳（点击回到日间）——线性矢量图标
   var btnTheme = document.getElementById('btnTheme');
+  var ICON_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+  var ICON_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>';
   function applyTheme(dark) {
     document.body.classList.toggle('dark', dark);
     var src = dark ? DARK_THEME : LIGHT_THEME;   // 从固定色板拷贝，避免相互污染
     for (var k in LIGHT_THEME) THEME[k] = src[k];
-    btnTheme.textContent = dark ? '☀️' : '🌙';
+    btnTheme.innerHTML = dark ? ICON_SUN : ICON_MOON;
     btnTheme.title = dark ? '切换为日间模式' : '切换为夜间模式';
   }
   applyTheme(window.localStorage && localStorage.getItem('mathTheme') === 'dark');
