@@ -558,6 +558,45 @@
       .replace(/^-/, '0-');     // 表达式以负号开头（如 -x^2）
   }
 
+  /** 编译失败时给出具体的中文错误原因（定位常见问题：空输入/未知函数/未知符号/括号/运算符） */
+  function explainExprError(expr) {
+    var s = String(expr || '').trim();
+    if (!s) return '表达式为空，请输入函数';
+    var i, depth = 0;
+    // 1) 未知函数名（字母后紧跟左括号，如 sqr(x)、sinx( 也会被识别为函数名书写问题）
+    var KNOWN_FN = ['asin', 'acos', 'atan', 'sin', 'cos', 'tan', 'ln', 'lg', 'log', 'sqrt', 'abs', 'exp'];
+    var m, re = /\b([A-Za-z]{2,})\s*\(/g;
+    while ((m = re.exec(s))) {
+      if (KNOWN_FN.indexOf(m[1]) < 0) {
+        return '不支持的函数「' + m[1] + '」：请用 sin/cos/tan/ln/lg/sqrt/abs 等，函数名后必须带括号，如 sin(x)';
+      }
+    }
+    // 2) 未知符号（非函数、非变量 x/y、非常量 pi/e 的字母，如 abc、2sinx）
+    re = /[A-Za-z]+/g;
+    while ((m = re.exec(s))) {
+      if (m[0] !== 'x' && m[0] !== 'y' && m[0] !== 'pi' && m[0] !== 'e' && KNOWN_FN.indexOf(m[0]) < 0) {
+        return '不支持的符号「' + m[0] + '」：变量只能用 x（隐式方程可用 y），常量用 pi、e，乘法请写 *';
+      }
+    }
+    // 2.5) 数字与字母直接相邻（如 2x、3sin(x)）：需要乘号 *
+    if (/\d[A-Za-z]/.test(s)) return '数字与字母相乘需要写 *（如 2*x 而不是 2x）';
+    // 3) 括号匹配
+    for (i = 0; i < s.length; i++) {
+      if (s[i] === '(') depth++;
+      else if (s[i] === ')') {
+        depth--;
+        if (depth < 0) return '括号不匹配：第 ' + (i + 1) + ' 个字符处有多余的右括号 )';
+      }
+    }
+    if (depth > 0) return '括号不匹配：缺少 ' + depth + ' 个右括号 )';
+    // 4) 连续运算符 / 末尾运算符（如 x^^2、x^2+*3、x^2+）
+    var mm = s.match(/[+\-*/^]{2,}/);
+    if (mm) return '运算符书写有误：' + mm[0] + ' 连续出现（乘方用 ^ 如 x^2，乘法写 * 如 2*x）';
+    if (/[+\-*/^]$/.test(s)) return '表达式以运算符结尾：缺少运算数（如 …x^2+）';
+    // 5) 其他语法问题（JS 解析失败等）
+    return '表达式有误，请检查格式：变量 x、乘方 ^、乘法 *（示例：x^2-2*x+1、sin(x)、2^x）';
+  }
+
   /** 编译单变量函数 f(x)（导数模型用） */
   function compileFn(expr) {
     try {
@@ -568,7 +607,7 @@
       if (typeof t !== 'number' || !isFinite(t)) throw new Error('bad');
       return { fn: f, err: '' };
     } catch (err) {
-      return { fn: null, err: '表达式有误' };
+      return { fn: null, err: explainExprError(expr) };
     }
   }
 
@@ -582,7 +621,7 @@
       if (typeof t !== 'number' || !isFinite(t)) throw new Error('bad');
       return { fn: f, err: '' };
     } catch (err) {
-      return { fn: null, err: '表达式有误' };
+      return { fn: null, err: explainExprError(expr) };
     }
   }
 
@@ -1644,10 +1683,23 @@
       params: [
         { key: 'expr', type: 'text', label: '函数 f(x)', def: 'x^3-3*x',
           cap: '示例：x^2-2*x+1、1/(1+x^2)、sqrt(x+2)、2^x；输入后按回车确认' },
+        { key: 'drawFn', type: 'button', label: '绘制函数图形' },
         { key: 'r', label: '视野 ±r', min: 2, max: 12, step: 0.5, def: 6, cap: '横纵坐标显示范围' }
       ],
       defaults: { expr: 'x^3-3*x', r: 6, fn: null, err: '', implicit: false },
       compile: function (st) { var res = compileExpr2(st.expr); st.fn = res.fn; st.err = res.err; st.implicit = res.implicit; },
+      buttonAction: function (st, key) {
+        if (key === 'drawFn') {
+          // 点击「绘制函数图形」：先读取输入框当前内容（可能还没按回车），重新编译校验
+          var inp = document.getElementById('sl_expr');
+          if (inp) st.expr = inp.value;
+          this.compile(st);
+          if (st.err) {
+            alert('函数输入有误：' + st.err);   // 弹出具体错误原因，不绘制
+            return;
+          }
+        }
+      },
       draw: function (S) { drawCustomFn(S, '请输入正确的函数表达式（按回车确认）'); },
       formulas: function (S) { formulasCustom(S, ['x^2-2*x+1', '1/(1+x^2)', 'sqrt(x+2)', '2^x']); },
       hint: '输入任意函数（回车确认）生成图像：支持 sin/cos/tan、ln/lg、sqrt/abs、pi/e、^ 乘方，乘法写 *。'
@@ -2521,6 +2573,7 @@
       params: [
         { key: 'expr', type: 'text', label: '函数 f(x)', def: 'x^3-3*x',
           cap: '支持 x、^、+ - * /、sin cos tan、ln lg sqrt abs、pi、e；输入后按回车确认' },
+        { key: 'drawFn', type: 'button', label: '绘制函数图形' },
         { key: 'x0', label: '切点横坐标 x₀', min: -8, max: 8, step: 0.05, def: 1.5, cap: '范围 -8 ~ 8，横轴视野自动跟随' }
       ],
       defaults: { expr: 'x^3-3*x', x0: 1.5, fn: null, err: '' },
@@ -2528,6 +2581,18 @@
         // 用户输入表达式 → 可执行函数（模型计算入口）
         var res = compileFn(st.expr);
         st.fn = res.fn; st.err = res.err;
+      },
+      buttonAction: function (st, key) {
+        if (key === 'drawFn') {
+          // 点击「绘制函数图形」：先读取输入框当前内容（可能还没按回车），重新编译校验
+          var inp = document.getElementById('sl_expr');
+          if (inp) st.expr = inp.value;
+          this.compile(st);
+          if (st.err) {
+            alert('函数输入有误：' + st.err);   // 弹出具体错误原因，不绘制
+            return;
+          }
+        }
       },
       draw: function (S) {
         if (!S.fn) {
