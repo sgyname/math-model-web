@@ -2075,10 +2075,10 @@
         { key: 'eraser', label: '橡皮擦模式（擦除笔迹）', def: false },
         { key: 'seg', label: '选点连线（点击两个顶点连线）', def: false }
       ],
-      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, penPlane: 'face', penFace: 0, penColor: MARK_COLORS[0], penStrokes: [], segLines: [], segSel: null },
+      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, penPlane: 'face', penFace: 0, penColor: MARK_COLORS[0], penStrokes: [], segLines: [], segSel: null, interPts: [] },
       buttonAction: function (st, key) {
         if (key === 'clearPen') st.penStrokes = [];
-        else if (key === 'clearSeg') { st.segLines = []; st.segSel = null; }
+        else if (key === 'clearSeg') { st.segLines = []; st.segSel = null; st.interPts = []; }
       },
       draw: function (S) {
         // ---- 3D 模型：几何体线框（顶点绕 X/Y 轴旋转 → 正交投影） ----
@@ -2156,7 +2156,9 @@
           });
         }
         // 选点连线（两点确定的线段，颜色同画笔色板 + 端点圆点，随几何体旋转；画在最上层）
+        // 每次重绘先重算交点（形状/连线变化后自动同步；多面体棱少，开销可忽略）
         if (S.segLines && S.segLines.length) {
+          recomputeSegInter(S);
           S.segLines.forEach(function (ln) {
             var p1 = P(ln.p1), p2 = P(ln.p2);
             ctx.strokeStyle = ln.color || S.penColor || MARK_COLORS[0]; ctx.lineWidth = 2.8; ctx.setLineDash([]);
@@ -2167,9 +2169,18 @@
             });
           });
         }
-        // 选点连线：当前选中的第一个点高亮圈（固定琥珀橙，与笔迹色板区分：表示"待连线的选中点"）
+        // 连线交点（连线×连线、连线×棱产生的交点）：深灰圆点 + 白色描边，可点击继续连线
+        if (S.interPts && S.interPts.length) {
+          S.interPts.forEach(function (p) {
+            var pr = P(p);
+            ctx.beginPath(); ctx.arc(H.X(pr.x), H.Y(pr.y), 4.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#334155'; ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.5; ctx.stroke();
+          });
+        }
+        // 选点连线：当前选中的第一个点高亮圈（固定琥珀橙，表示"待连线的选中点"）
         if (S.segSel) {
-          var pr = P(S.segSel);
+          var pr = P(S.segSel.pt);
           ctx.beginPath(); ctx.arc(H.X(pr.x), H.Y(pr.y), 7, 0, Math.PI * 2);
           ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2.5; ctx.stroke();
         }
@@ -2195,11 +2206,15 @@
       canvasNote: function (S) {
         if (S.eraser) return '橡皮擦模式：按住拖动擦除经过的笔迹（不可恢复，可配合「清空笔迹」重来）';
         if (S.seg) {
-          // 状态感知：选中第 1 个顶点时提示下一步，否则显示已连线数（draw() 每次重绘都会刷新此提示）
-          if (S.segSel) return '已选中第 1 个顶点，再点击第 2 个顶点完成连线';
+          // 状态感知：选中第 1 个点（顶点/交点）时提示下一步，否则显示已连线数（draw() 每次重绘都会刷新此提示）
+          if (S.segSel) {
+            return S.segSel.kind === 'inter'
+              ? '已选中第 1 个交点（深灰圆点），再点击第 2 个顶点或交点完成连线'
+              : '已选中第 1 个顶点，再点击第 2 个顶点或交点完成连线';
+          }
           var n = S.segLines ? S.segLines.length : 0;
-          return n ? '选点连线：依次点击两个顶点连线（已连 ' + n + ' 条，颜色同画笔色板）；用「清空连线」清除'
-                    : '选点连线：依次点击两个顶点即可连线（颜色同画笔色板）；可连多条，用「清空连线」清除';
+          return n ? '选点连线：依次点击两个点连线（已连 ' + n + ' 条，颜色同画笔色板；连线交点也可继续选）；用「清空连线」清除'
+                    : '选点连线：依次点击两个顶点或连线交点即可连线（颜色同画笔色板）；可连多条，用「清空连线」清除';
         }
         if (S.pen) {
           if (S.penPlane === 'face') {
@@ -2773,11 +2788,67 @@
   var dragStart = null, dragPan0 = null, dragMoved = false;
   /* ---- 立体几何空间画笔/橡皮擦/选点连线：开启后优先处理，不触发平移 ---- */
   var penDrawing = false, erasing = false, penLastScreen = null;
-  /** 屏幕拾取顶点：返回距离鼠标最近的顶点 {idx, pt, z}，超过阈值返回 null */
+
+  /** 3D 线段求交：线段 a1a2 与 b1b2 有真实交点时返回交点坐标 [x,y,z]，否则返回 null。
+      原理：两线参数化 a1+t·d1、b1+s·d2，交点满足 a1+t·d1=b1+s·d2；
+      用 d1×d2 点乘两边解出 t、s（平行/共线时叉积为零返回 null），
+      再验证 t,s∈[0,1] 且两参数点重合（容差内），保证"真实相交"而非空间交错。 */
+  function segSegInter3D(a1, a2, b1, b2) {
+    var d1x = a2[0] - a1[0], d1y = a2[1] - a1[1], d1z = a2[2] - a1[2];
+    var d2x = b2[0] - b1[0], d2y = b2[1] - b1[1], d2z = b2[2] - b1[2];
+    var nx = d1y * d2z - d1z * d2y, ny = d1z * d2x - d1x * d2z, nz = d1x * d2y - d1y * d2x;
+    var nn = nx * nx + ny * ny + nz * nz;
+    if (nn < 1e-18) return null;   // 平行或共线：无单一交点
+    var wx = b1[0] - a1[0], wy = b1[1] - a1[1], wz = b1[2] - a1[2];
+    var t = ((wy * d2z - wz * d2y) * nx + (wz * d2x - wx * d2z) * ny + (wx * d2y - wy * d2x) * nz) / nn;
+    var s = ((wy * d1z - wz * d1y) * nx + (wz * d1x - wx * d1z) * ny + (wx * d1y - wy * d1x) * nz) / nn;
+    if (t < -1e-6 || t > 1 + 1e-6 || s < -1e-6 || s > 1 + 1e-6) return null;   // 交点不在线段范围内
+    var px = a1[0] + t * d1x, py = a1[1] + t * d1y, pz = a1[2] + t * d1z;
+    var qx = b1[0] + s * d2x, qy = b1[1] + s * d2y, qz = b1[2] + s * d2z;
+    if (Math.hypot(px - qx, py - qy, pz - qz) > 1e-5) return null;   // 空间交错（不相交但投影可能看起来相交）
+    return [px, py, pz];
+  }
+
+  /** 重算所有"连线交点"：连线×连线、连线×几何体棱，去重并剔除与顶点重合的点。
+      交点保存为 3D 坐标，随几何体一起旋转；可被拾取并继续参与连线。 */
+  function recomputeSegInter(st) {
+    var lines = st.segLines || [];
+    var verts = shapeData(st.shape).verts || [];
+    var edges = shapeData(st.shape).edges || [];
+    var found = [];
+    // 连线 × 连线
+    for (var i = 0; i < lines.length; i++) {
+      for (var j = i + 1; j < lines.length; j++) {
+        var p = segSegInter3D(lines[i].p1, lines[i].p2, lines[j].p1, lines[j].p2);
+        if (p) found.push(p);
+      }
+    }
+    // 连线 × 几何体棱
+    lines.forEach(function (ln) {
+      edges.forEach(function (ed) {
+        var q = segSegInter3D(ln.p1, ln.p2, ed[0], ed[1]);
+        if (q) found.push(q);
+      });
+    });
+    // 去重（同一位置多个交点只保留一个）+ 剔除与顶点重合的点（顶点已可选）
+    var out = [];
+    found.forEach(function (p) {
+      for (var k = 0; k < out.length; k++) {
+        if (Math.hypot(out[k][0] - p[0], out[k][1] - p[1], out[k][2] - p[2]) < 1e-5) return;
+      }
+      for (var v = 0; v < verts.length; v++) {
+        if (Math.hypot(verts[v][0] - p[0], verts[v][1] - p[1], verts[v][2] - p[2]) < 1e-5) return;
+      }
+      out.push(p);
+    });
+    st.interPts = out;
+  }
+
+  /** 屏幕拾取点：返回距离鼠标最近的顶点或连线交点 {idx, pt, kind}（kind: 'vertex'|'inter'），超过阈值返回 null */
   function pickVertexAt(e) {
     var st = states.solid;
     var verts = shapeData(st.shape).verts || [];
-    if (!verts.length) return null;
+    var inters = st.interPts || [];
     var rect = canvas.getBoundingClientRect();
     var sx = (e.clientX - rect.left) * (canvas.width / rect.width);
     var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
@@ -2786,7 +2857,13 @@
       var pr = rotatePt(v, st.ry, st.rx);
       var px = H.X(pr.x), py = H.Y(pr.y);
       var d = Math.hypot(px - sx, py - sy);
-      if (d < 24 && d < bestD) { bestD = d; best = { idx: i, pt: v }; }   // 24px 触摸友好阈值
+      if (d < 24 && d < bestD) { bestD = d; best = { idx: i, pt: v, kind: 'vertex' }; }   // 24px 触摸友好阈值
+    });
+    inters.forEach(function (p, i) {
+      var pr = rotatePt(p, st.ry, st.rx);
+      var px = H.X(pr.x), py = H.Y(pr.y);
+      var d = Math.hypot(px - sx, py - sy);
+      if (d < 24 && d < bestD) { bestD = d; best = { idx: i, pt: p, kind: 'inter' }; }
     });
     return best;
   }
@@ -2871,20 +2948,23 @@
   }
   canvas.addEventListener('pointerdown', function (e) {
     if (currentId === 'solid' && S().seg) {
-      // 选点连线模式：点击顶点选点，两次点击之间连线
+      // 选点连线模式：点击顶点或连线交点选点，两次点击之间连线
       var vhit = pickVertexAt(e);
       if (!vhit) {
-        noteEl.textContent = '请点击几何体的顶点（当前未选中）';
+        noteEl.textContent = '请点击几何体的顶点或连线交点（当前未选中）';
         return;
       }
       var st = states.solid;
       if (!st.segLines) st.segLines = [];
       if (!st.segSel) {
-        st.segSel = vhit.pt;   // 记录第一个点（3D 坐标）
-        noteEl.textContent = '已选中第 1 个顶点，再点击第 2 个顶点完成连线';
+        st.segSel = { pt: vhit.pt, kind: vhit.kind };   // 记录第一个点（3D 坐标 + 类型）
+        noteEl.textContent = vhit.kind === 'inter'
+          ? '已选中第 1 个交点，再点击第 2 个顶点或交点完成连线'
+          : '已选中第 1 个顶点，再点击第 2 个顶点或交点完成连线';
       } else {
-        st.segLines.push({ p1: st.segSel, p2: vhit.pt, color: st.penColor || MARK_COLORS[0] });
+        st.segLines.push({ p1: st.segSel.pt, p2: vhit.pt, color: st.penColor || MARK_COLORS[0] });
         st.segSel = null;
+        recomputeSegInter(st);   // 新连线可能与其他连线/棱相交，重算交点
         noteEl.textContent = '已连线 ' + st.segLines.length + ' 条（可继续选点连线）';
       }
       draw();
