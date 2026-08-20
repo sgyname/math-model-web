@@ -2083,6 +2083,7 @@
           options: MARK_COLORS.map(function (c, i) { return { v: c, label: MARK_COLOR_NAMES[i] }; }),
           def: MARK_COLORS[0], cap: '画笔笔迹与选点连线共用的颜色（可多色分层标注）'
         },
+        { key: 'undo', type: 'button', label: '返回上一步' },
         { key: 'clearPen', type: 'button', label: '清空笔迹' },
         { key: 'clearSeg', type: 'button', label: '清空连线' }
       ],
@@ -2091,10 +2092,22 @@
         { key: 'eraser', label: '橡皮擦模式（擦除笔迹）', def: false },
         { key: 'seg', label: '选点连线（点击两个顶点连线）', def: false }
       ],
-      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, penPlane: 'face', penFace: 0, penColor: MARK_COLORS[0], penStrokes: [], segLines: [], segSel: null, interPts: [] },
+      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, penPlane: 'face', penFace: 0, penColor: MARK_COLORS[0], penStrokes: [], segLines: [], segSel: null, interPts: [], undoStack: [] },
       buttonAction: function (st, key) {
-        if (key === 'clearPen') st.penStrokes = [];
-        else if (key === 'clearSeg') { st.segLines = []; st.segSel = null; st.interPts = []; }
+        if (key === 'undo') {
+          // 返回上一步：撤销最近一次作图操作（笔迹段 / 连线 / 选中的第一个点）
+          if (!st.undoStack || !st.undoStack.length) return;
+          var op = st.undoStack.pop();
+          if (op.type === 'pen') {
+            if (st.penStrokes && st.penStrokes.length) st.penStrokes.pop();
+          } else if (op.type === 'seg') {
+            if (st.segLines && st.segLines.length) { st.segLines.pop(); recomputeSegInter(st); }
+          } else if (op.type === 'segSel') {
+            st.segSel = null;
+          }
+        }
+        else if (key === 'clearPen') { st.penStrokes = []; st.undoStack = []; }
+        else if (key === 'clearSeg') { st.segLines = []; st.segSel = null; st.interPts = []; st.undoStack = []; }
       },
       draw: function (S) {
         // ---- 3D 模型：几何体线框（顶点绕 X/Y 轴旋转 → 正交投影） ----
@@ -2240,7 +2253,7 @@
         }
         return '用右上角「左右/上下旋转」滑块调整视角；勾选画笔/橡皮擦/选点连线模式可在空间内作图';
       },
-      hint: '用图像右上角的「左右/上下旋转」滑块从任意角度观察；开启画笔/橡皮擦可在空间内作图；切换形状对比顶点/棱/面与欧拉公式。'
+      hint: '用图像右上角的「左右/上下旋转」滑块从任意角度观察；开启画笔/橡皮擦可在空间内作图；「返回上一步」可撤销最近一次笔迹或连线。'
     },
 
     /* ---------- 数列与代数 ---------- */
@@ -2972,14 +2985,19 @@
       }
       var st = states.solid;
       if (!st.segLines) st.segLines = [];
+      if (!st.undoStack) st.undoStack = [];
       if (!st.segSel) {
         st.segSel = { pt: vhit.pt, kind: vhit.kind };   // 记录第一个点（3D 坐标 + 类型）
+        st.undoStack.push({ type: 'segSel' });          // 可撤销：取消选中
         noteEl.textContent = vhit.kind === 'inter'
           ? '已选中第 1 个交点，再点击第 2 个顶点或交点完成连线'
           : '已选中第 1 个顶点，再点击第 2 个顶点或交点完成连线';
       } else {
         st.segLines.push({ p1: st.segSel.pt, p2: vhit.pt, color: st.penColor || MARK_COLORS[0] });
         st.segSel = null;
+        // 可撤销：选点+连线合并为一步（若栈顶是 segSel 先弹出）
+        if (st.undoStack.length && st.undoStack[st.undoStack.length - 1].type === 'segSel') st.undoStack.pop();
+        st.undoStack.push({ type: 'seg' });
         recomputeSegInter(st);   // 新连线可能与其他连线/棱相交，重算交点
         noteEl.textContent = '已连线 ' + st.segLines.length + ' 条（可继续选点连线）';
       }
@@ -3011,8 +3029,10 @@
         }
       }
       if (!states.solid.penStrokes) states.solid.penStrokes = [];
+      if (!states.solid.undoStack) states.solid.undoStack = [];
       // 新的一段：记录当前画笔颜色，之后换色不影响已画笔迹（每段颜色独立）
       states.solid.penStrokes.push({ color: states.solid.penColor || MARK_COLORS[0], pts: [] });
+      states.solid.undoStack.push({ type: 'pen' });   // 可撤销：删除这一段笔迹
       canvas.setPointerCapture(e.pointerId);
       addPenPoint(e);
       draw();
