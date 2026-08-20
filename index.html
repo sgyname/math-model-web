@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -206,6 +206,19 @@
     box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
   }
   #viewBtns button:hover { background: #eef4ff; }
+  /* 立体几何旋转滑块（图像右上角，仅 3D 模型时显示） */
+  #rotBar {
+    position: absolute; top: 64px; right: 10px;
+    display: none; flex-direction: column; gap: 6px;
+    background: rgba(255, 255, 255, .94);
+    border: 2px solid #e2e8f0; border-radius: 12px;
+    padding: 10px 12px;
+    box-shadow: 0 2px 8px rgba(30, 60, 120, .12);
+    z-index: 2;
+  }
+  .rot-item { display: flex; align-items: center; gap: 8px; }
+  .rot-label { font-size: 16px; color: #1e3a8a; font-weight: bold; white-space: nowrap; }
+  #rotBar input[type="range"] { width: 150px; margin: 0; }
   /* 画布右下角：操作提示 */
   #opHint {
     position: absolute; right: 14px; bottom: 12px;
@@ -257,6 +270,59 @@
   #valueTable td { font-size: 18px; padding: 4px 14px; border-bottom: 1px solid #edf1f7; }
   #valueTable td.k { color: #475569; white-space: nowrap; }
   #valueTable td.v { color: #1e3a8a; font-weight: bold; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ============================================================
+     手机/小平板适配（媒体查询，不影响电脑端布局）
+     - 竖屏：画布在上、面板在下（纵向滚动）
+     - 横屏：左侧窄面板 + 右侧画布，充分利用横向空间
+     - 导航横向滚动、控件紧凑、公式区可折叠
+     ============================================================ */
+  @media (max-width: 1024px) {
+    body { font-size: 16px; }
+    header { padding: 6px 12px; gap: 8px; }
+    header h1 { font-size: 20px; }
+    header .sub { font-size: 13px; }
+    #btnShot { font-size: 14px; padding: 5px 10px; }
+    #nav { margin: 8px 8px 0; padding: 6px 8px; gap: 5px; }
+    .catBtn { font-size: 13px; padding: 3px 10px; }
+    .modelBtn { font-size: 13px; padding: 4px 10px; }
+    .catRow, .modelRow { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    main { padding: 8px; gap: 8px; flex-direction: column; overflow-y: auto; }
+    #panel { width: 100%; flex: none; max-height: 34vh; padding: 10px 12px; gap: 7px; order: 2; }
+    #canvasWrap { flex: 1; min-height: 46vh; order: 1; }
+    .panel-title { font-size: 16px; padding-bottom: 5px; }
+    .ctrl-head label { font-size: 15px; }
+    .ctrl-head .val { font-size: 19px; min-width: 56px; }
+    .ctrl-cap { font-size: 11px; }
+    input[type="range"] { height: 9px; margin: 4px 0 1px; }
+    input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; border-width: 2px; }
+    input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-width: 2px; }
+    .chk { font-size: 15px; gap: 8px; }
+    input[type="checkbox"] { width: 22px; height: 22px; }
+    #btnReset { font-size: 16px; padding: 8px 0; border-radius: 9px; }
+    .miniBtn { font-size: 14px; padding: 6px 0; }
+    .exprInput, textarea.exprInput, select { font-size: 14px; padding: 5px 7px; }
+    .hint { font-size: 12px; }
+    #formulaArea { margin: 0 8px 8px; }
+    .fa-toggle { font-size: 15px; padding: 6px 12px; }
+    .fa-body { padding: 6px 10px 8px; gap: 10px; }
+    #formulaLeft .m { font-size: 15px; min-height: 24px; }
+    #formulaLeft .note { font-size: 13px; min-height: 20px; }
+    #valueTable td { font-size: 13px; padding: 2px 8px; }
+    #viewBtns { top: 6px; right: 6px; gap: 4px; }
+    #viewBtns button { font-size: 13px; padding: 4px 9px; border-radius: 8px; }
+    #rotBar { top: 52px; right: 6px; padding: 6px 8px; gap: 4px; }
+    .rot-label { font-size: 12px; }
+    #rotBar input[type="range"] { width: 96px; }
+    #canvasNote { left: 8px; bottom: 8px; font-size: 13px; padding: 5px 10px; }
+    #opHint { right: 8px; bottom: 8px; font-size: 11px; }
+  }
+  /* 手机横屏：左右布局（窄面板 + 画布） */
+  @media (max-width: 1024px) and (orientation: landscape) {
+    main { flex-direction: row; overflow: hidden; }
+    #panel { width: 210px; max-height: none; order: 1; }
+    #canvasWrap { flex: 1; min-height: 0; order: 2; }
+  }
 </style>
 
 <!-- MathJax 配置：必须在加载脚本之前设置 -->
@@ -300,6 +366,11 @@
       <button id="btnZoomOut" title="缩小">−</button>
       <button id="btnResetView" title="恢复默认视图">重置视图</button>
       <button id="btnCoord" title="显示/隐藏坐标轴与网格（方便看图）">隐藏坐标系</button>
+    </div>
+    <!-- 立体几何旋转控制（图像边，仅 3D 模型时显示） -->
+    <div id="rotBar">
+      <div class="rot-item"><span class="rot-label">左右旋转</span><input type="range" id="rotY" min="-180" max="180" step="1" value="30"></div>
+      <div class="rot-item"><span class="rot-label">上下旋转</span><input type="range" id="rotX" min="-90" max="90" step="1" value="15"></div>
     </div>
     <div id="opHint">滚轮缩放 · 拖拽平移</div>
     <div id="canvasNote">提示：拖动左侧滑块，观察图像与公式实时变化</div>
@@ -454,6 +525,95 @@
      ③+ 自定义函数/方程模型的绘制与公式（基本函数/三角函数/圆锥曲线共用）
      ================================================================ */
 
+  /** 3D 点绕 Y/X 轴旋转 + 正交投影（立体几何模型与空间画笔/橡皮擦共用）
+      顺序：先绕 Y(ry) 再绕 X(rx)，返回 {x, y, z} */
+  function rotatePt(v, ry, rx) {
+    var b = ry * Math.PI / 180, a = rx * Math.PI / 180;
+    var cb = Math.cos(b), sb = Math.sin(b), ca = Math.cos(a), sa = Math.sin(a);
+    var x1 = v[0] * cb + v[2] * sb;
+    var z1 = -v[0] * sb + v[2] * cb;
+    var y2 = v[1] * ca - z1 * sa;
+    var z2 = v[1] * sa + z1 * ca;
+    return { x: x1, y: y2, z: z2 };
+  }
+
+  /** 多面体各面的教学名称（与 shapeData 的 faces 顺序一一对应；
+      注意观察者在 +z 方向，z 最大的面朝向观察者，即「前面」） */
+  var FACE_NAMES = {
+    cuboid: ['后面', '前面', '左面', '右面', '顶面', '底面'],
+    cube: ['后面', '前面', '左面', '右面', '顶面', '底面'],
+    triPrism: ['下底面', '上底面', '侧面 1', '侧面 2', '侧面 3'],
+    pyramidFrustum: ['下底面', '上底面', '后面', '前面', '右面', '左面']
+  };
+
+  /** 2D 点在多边形内判断（射线法 + 边/顶点容差） */
+  function inPoly2D(pts, px, py) {
+    for (var m = 0; m < pts.length; m++) {
+      var ea = pts[m], eb = pts[(m + 1) % pts.length];
+      var abx = eb.x - ea.x, aby = eb.y - ea.y;
+      var len2 = abx * abx + aby * aby;
+      var tt = len2 > 0 ? ((px - ea.x) * abx + (py - ea.y) * aby) / len2 : 0;
+      tt = Math.max(0, Math.min(1, tt));
+      var ddx = px - (ea.x + tt * abx), ddy = py - (ea.y + tt * aby);
+      if (Math.hypot(ddx, ddy) < 1e-6) return true;
+    }
+    var inside = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      var xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+      if (((yi > py) !== (yj > py)) &&
+          (px < (xj - xi) * (py - yi) / (yj - yi) + xi + 1e-9)) inside = !inside;
+    }
+    return inside;
+  }
+
+  /** 判断 3D 点 p 是否落在面多边形（face 顶点数组）内：投影到面局部 2D 坐标后判断 */
+  function faceContains(face, p, n) {
+    var v0 = face[0];
+    var ux = face[1][0] - v0[0], uy = face[1][1] - v0[1], uz = face[1][2] - v0[2];
+    var ul = Math.hypot(ux, uy, uz); ux /= ul; uy /= ul; uz /= ul;
+    // 面的第二个基向量 v = n × u
+    var vx = n[1] * uz - n[2] * uy, vy = n[2] * ux - n[0] * uz, vz = n[0] * uy - n[1] * ux;
+    function proj(q) {
+      return {
+        x: (q[0] - v0[0]) * ux + (q[1] - v0[1]) * uy + (q[2] - v0[2]) * uz,
+        y: (q[0] - v0[0]) * vx + (q[1] - v0[1]) * vy + (q[2] - v0[2]) * vz
+      };
+    }
+    var pts = face.map(proj), pp = proj(p);
+    return inPoly2D(pts, pp.x, pp.y);
+  }
+
+  /** 屏幕拾取：返回鼠标位置命中的面索引（选最靠近观察者的面），未命中返回 -1 */
+  function pickFaceAt(e) {
+    var st = states.solid;
+    var data = shapeData(st.shape);
+    if (!data.faces || !data.faces.length) return -1;
+    var rect = canvas.getBoundingClientRect();
+    var sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+    var best = -1, bestZ = -Infinity;
+    data.faces.forEach(function (face, i) {
+      var avgZ = 0;
+      var pts2d = face.map(function (v) {
+        var pr = rotatePt(v, st.ry, st.rx);
+        avgZ += pr.z;
+        return { x: H.X(pr.x), y: H.Y(pr.y) };
+      });
+      avgZ /= pts2d.length;
+      if (inPoly2D(pts2d, sx, sy) && avgZ > bestZ) {   // 命中且最靠前（z 最大）
+        bestZ = avgZ;
+        best = i;
+      }
+    });
+    return best;
+  }
+
+  /** 当前激活面的教学名称 */
+  function faceNameOf(st) {
+    var names = FACE_NAMES[st.shape] || [];
+    return names[st.penFace] || ('面 ' + (st.penFace + 1));
+  }
+
   /** 隐式曲线绘制：marching squares（网格采样 F(x,y)，线性插值画等值线 F=0）
       color：曲线颜色（默认蓝色；多函数模型可传其它颜色与显式函数区分） */
   function drawImplicit(F, r, color) {
@@ -601,8 +761,10 @@
 
   /* ---- 多函数图像模型：一次输入多个函数，同屏对比 ---- */
   var MULTI_COLORS = ['#2563eb', '#d97706', '#0f766e', '#dc2626', '#7c3aed', '#0891b2', '#65a30d', '#db2777'];
+  // 隐式方程独立色组（与显式函数区分，多方程各自着色）
+  var IMP_COLORS = ['#db2777', '#65a30d', '#0d9488', '#9333ea', '#ea580c', '#0369a1'];
 
-  /** 编译多个函数：按换行/分号拆分，每段编译为一个 {expr, fn, err}；另支持一个可选隐式方程 F(x,y)=0 */
+  /** 编译多个函数：按换行/分号拆分，每段编译为一个 {expr, fn, err}；另支持多个隐式方程 F(x,y)=0 */
   function compileMultiFn(st) {
     var parts = String(st.expr || '').split(/[;\n]+/).map(function (s) { return s.trim(); }).filter(Boolean);
     st.fns = [];
@@ -616,14 +778,15 @@
         st.fns.push({ expr: p, fn: res.fn, err: res.err });
       });
     }
-    // 可选隐式方程 F(x,y)=0（用等值线法绘制，可与上方显式函数同屏）
-    st.impFn = null; st.impErr = '';
-    var impStr = String(st.imp || '').trim();
-    if (impStr) {
-      var res2 = compileExpr2(impStr);
-      if (res2.fn) st.impFn = res2.fn;
-      else st.impErr = res2.err || '表达式有误';
-    }
+    // 多个隐式方程 F(x,y)=0（每行一个或分号分隔，等值线法绘制，最多 6 个）
+    st.imps = [];
+    st.impErr = '';
+    var impParts = String(st.imp || '').split(/[;\n]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    if (impParts.length > 6) { impParts = impParts.slice(0, 6); st.impErr = '最多 6 个隐式方程，已截取前 6 个'; }
+    impParts.forEach(function (p) {
+      var res2 = compileExpr2(p);
+      st.imps.push({ expr: p, fn: res2.fn, err: res2.err || '' });
+    });
   }
 
   /* ---- 多项式字符串（二次函数等使用）---- */
@@ -931,6 +1094,7 @@
         [-hx, -hy, -hz], [hx, -hy, -hz], [hx, hy, -hz], [-hx, hy, -hz],
         [-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz]
       ];
+      var verts = v;   // 顶点（供选点连线拾取）
       var ei = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
       ei.forEach(function (e) { edges.push([v[e[0]], v[e[1]]]); });
       // 六个面（外法向一致，供背面剔除与半透明填充）
@@ -981,6 +1145,7 @@
       var A0 = [-a6 / 2, -h6 / 2, rTri / 2], A1 = [a6 / 2, -h6 / 2, rTri / 2], A2 = [0, -h6 / 2, -rTri];
       var B0 = [-a6 / 2, h6 / 2, rTri / 2], B1 = [a6 / 2, h6 / 2, rTri / 2], B2 = [0, h6 / 2, -rTri];
       var vp = [A0, A1, A2, B0, B1, B2];
+      var verts = vp;   // 顶点（供选点连线拾取）
       var ep = [[0, 1], [1, 2], [2, 0], [3, 4], [4, 5], [5, 3], [0, 3], [1, 4], [2, 5]];
       ep.forEach(function (e) { edges.push([vp[e[0]], vp[e[1]]]); });
       faces.push([A0, A2, A1]);            // 下底面
@@ -994,6 +1159,7 @@
       var C0 = [-s1, -hf, -s1], C1 = [s1, -hf, -s1], C2 = [s1, -hf, s1], C3 = [-s1, -hf, s1];
       var D0 = [-s2, hf, -s2], D1 = [s2, hf, -s2], D2 = [s2, hf, s2], D3 = [-s2, hf, s2];
       var vq = [C0, C1, C2, C3, D0, D1, D2, D3];
+      var verts = vq;   // 顶点（供选点连线拾取）
       var eq = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
       eq.forEach(function (e) { edges.push([vq[e[0]], vq[e[1]]]); });
       faces.push([C0, C1, C2, C3]);        // 下底面
@@ -1017,7 +1183,7 @@
         if (i % 2 === 0) edges.push([bot2[i], top2[i]]);   // 母线（隔一条画）
       }
     }
-    return { edges: edges, faces: faces };
+    return { edges: edges, faces: faces, verts: verts || [] };
   }
 
   /** 各几何体的教学数据（顶点/棱/面、体积、表面积） */
@@ -1353,21 +1519,26 @@
       params: [
         { key: 'expr', type: 'textarea', label: '多个函数（每行一个）', def: 'x^2\nsin(x)\n2^x',
           cap: '每行一个函数（或分号分隔），Ctrl+Enter 或点击其他处确认；最多 8 个' },
-        { key: 'imp', type: 'text', label: '隐式方程 F(x,y)=0（可选）', def: '',
-          cap: '如 x^2+y^2=4、x^2/9-y^2/4=1；与上方函数同屏显示；留空不画' },
+        { key: 'imp', type: 'textarea', label: '多个隐式方程（每行一个）', def: '',
+          cap: '如 x^2+y^2=4、x^2/9-y^2/4=1、y^2=4*x；最多 6 个，与显式函数同屏显示；留空不画' },
         { key: 'r', label: '视野 ±r', min: 2, max: 12, step: 0.5, def: 6, cap: '横纵坐标显示范围' }
       ],
-      defaults: { expr: 'x^2\nsin(x)\n2^x', imp: '', impFn: null, impErr: '', r: 6, fns: [], err: '' },
+      defaults: { expr: 'x^2\nsin(x)\n2^x', imp: '', imps: [], impErr: '', r: 6, fns: [], err: '' },
       compile: compileMultiFn,
       draw: function (S) {
         var r = S.r;
         H.setViewRect(-r, r, -r, r); H.grid(); H.axes();
-        if ((!S.fns || S.fns.length === 0) && !S.impFn) {
+        if ((!S.fns || S.fns.length === 0) && (!S.imps || S.imps.length === 0)) {
           H.text(0, 0, '请输入函数（每行一个）或隐式方程 F(x,y)=0', { color: '#dc2626', size: 18, bold: true });
           return;
         }
-        // 隐式方程 F(x,y)=0（等值线法，玫红色，先画作底层）
-        if (S.impFn) drawImplicit(S.impFn, r, '#db2777');
+        // 多个隐式方程 F(x,y)=0（等值线法，独立颜色，先画作底层）
+        if (S.imps && S.imps.length) {
+          S.imps.forEach(function (imp, i) {
+            if (!imp.fn) return;
+            drawImplicit(imp.fn, r, IMP_COLORS[i % IMP_COLORS.length]);
+          });
+        }
         // 多个显式函数同屏绘制，不同颜色区分
         S.fns.forEach(function (fn, i) {
           if (!fn.fn) return;
@@ -1387,44 +1558,55 @@
           ctx.fillText(text, 50, ly + 9);
           ly += 26;
         }
-        if (S.impFn) legendItem('F(x,y)=0: ' + S.imp, '#db2777');
+        (S.imps || []).forEach(function (imp, i) {
+          if (!imp.fn) return;
+          legendItem('F(x,y)=0: ' + imp.expr, IMP_COLORS[i % IMP_COLORS.length]);
+        });
         S.fns.forEach(function (fn, i) {
           if (!fn.fn) return;
           legendItem(fn.expr, MULTI_COLORS[i % MULTI_COLORS.length]);
         });
       },
       formulas: function (S) {
-        if ((!S.fns || S.fns.length === 0) && !S.impFn && !S.impErr) {
+        if ((!S.fns || S.fns.length === 0) && (!S.imps || S.imps.length === 0) && !S.impErr) {
           fEq.textContent = '请输入函数表达式（每行一个）或隐式方程，按回车确认';
           fC.innerHTML = ''; fE.innerHTML = '';
-          fNote.textContent = '显式函数支持：x、^、+、−、*、/、sin()、cos()、tan()、ln()、lg()、sqrt()、abs()、pi、e；隐式方程用 =（如 x^2+y^2=4）';
-          setTable([['示例', 'x^2'], ['示例', 'sin(x)'], ['示例', '2^x'], ['隐式示例', 'x^2+y^2=4']]);
+          fNote.textContent = '显式函数支持：x、^、+、−、*、/、sin()、cos()、tan()、ln()、lg()、sqrt()、abs()、pi、e；隐式方程用 =（如 x^2+y^2=4），每行一个';
+          setTable([['示例', 'x^2'], ['示例', 'sin(x)'], ['示例', '2^x'], ['隐式示例', 'x^2+y^2=4'], ['隐式示例', 'x^2/9-y^2/4=1']]);
           return;
         }
-        var latex = [], plain = [], hasErr = false;
+        var latex = [], plain = [], hasErr = false, impBad = 0;
         S.fns.forEach(function (fn, i) {
           if (fn.err) { hasErr = true; return; }
           latex.push('y_{' + (i + 1) + '}=' + fnToLatex(fn.expr));
           plain.push('y' + (i + 1) + ' = ' + fn.expr);
         });
-        if (S.impFn) {
-          latex.push(fnToLatex(S.imp));
-          plain.push(S.imp);
-        }
+        (S.imps || []).forEach(function (imp) {
+          if (imp.err) { impBad++; return; }
+          latex.push(fnToLatex(imp.expr));
+          plain.push(imp.expr);
+        });
         setMath(fEq, latex.join(',\\ '), plain.join('，'));
-        setMath(fC, '\\text{共}' + S.fns.length + '\\text{个函数}' + (S.impFn ? '\\text{ + 1 个隐式方程}' : '') + '\\text{同屏显示，不同颜色区分}',
-          '共 ' + S.fns.length + ' 个函数' + (S.impFn ? ' + 1 个隐式方程' : '') + '同屏显示，不同颜色区分');
+        setMath(fC, '\\text{共}' + S.fns.length + '\\text{个函数}+' + (S.imps ? S.imps.length : 0) + '\\text{个隐式方程同屏显示}',
+          '共 ' + S.fns.length + ' 个函数 + ' + (S.imps ? S.imps.length : 0) + ' 个隐式方程同屏显示');
         setMath(fE, '\\text{视野：}x,y\\in[-' + fmt(S.r) + ',' + fmt(S.r) + ']', '视野：x, y ∈ [−' + fmt(S.r) + ', ' + fmt(S.r) + ']');
-        fNote.textContent = hasErr ? '部分函数表达式有误，未绘制（修改后回车重试）' :
-          (S.impErr ? '隐式方程有误：' + S.impErr + '（修改后回车重试）' : '每行一个函数；隐式方程用等值线法绘制（玫红色）；可配合「视野 ±r」或滚轮缩放观察');
-        var rows = [['函数个数', String(S.fns.length)], ['视野', 'x, y ∈ [−' + fmt(S.r) + ', ' + fmt(S.r) + ']']];
+        var note = [];
+        if (hasErr) note.push('部分函数表达式有误，未绘制');
+        if (impBad > 0) note.push(impBad + ' 个隐式方程有误，未绘制');
+        if (S.impErr) note.push(S.impErr);
+        if (note.length === 0) note.push('每行一个函数或隐式方程；等值线法绘制，可配合「视野 ±r」或滚轮缩放观察');
+        fNote.textContent = note.join('；');
+        var rows = [['函数个数', String(S.fns.length)], ['隐式方程数', String(S.imps ? S.imps.length : 0)], ['视野', 'x, y ∈ [−' + fmt(S.r) + ', ' + fmt(S.r) + ']']];
         S.fns.forEach(function (fn, i) {
           rows.push(['函数 ' + (i + 1), fn.err ? fn.expr + '（表达式有误）' : fn.expr]);
         });
-        rows.push(['隐式方程', S.impFn ? S.imp : (S.impErr ? S.imp + '（表达式有误）' : '（未填写）')]);
+        (S.imps || []).forEach(function (imp, i) {
+          rows.push(['隐式 ' + (i + 1), imp.err ? imp.expr + '（表达式有误）' : imp.expr]);
+        });
+        if ((!S.imps || S.imps.length === 0) && !S.impErr) rows.push(['隐式方程', '（未填写）']);
         setTable(rows);
       },
-      hint: '每行输入一个函数（或用分号分隔），可另填一个隐式方程 F(x,y)=0，全部同屏对比；颜色自动区分，左上角有图例。'
+      hint: '每行输入一个函数或隐式方程（最多 8 函数 + 6 隐式方程），全部同屏对比；颜色自动区分，左上角有图例。'
     },
 
     /* ---------- 三角函数 ---------- */
@@ -1837,36 +2019,45 @@
             { v: 'sphere', label: '球' }
           ], def: 'cuboid', cap: '切换几何体'
         },
-        { key: 'ry', label: '绕Y轴旋转', min: -180, max: 180, step: 1, def: 30, cap: '水平转动视角' },
-        { key: 'rx', label: '绕X轴旋转', min: -90, max: 90, step: 1, def: 15, cap: '俯仰转动视角' },
         {
-          key: 'penPlane', type: 'select', label: '作图平面',
+          key: 'penPlane', type: 'select', label: '作图模式',
           options: [
-            { v: 'xy', label: 'XY 平面（水平）' },
-            { v: 'xz', label: 'XZ 平面（竖直）' },
-            { v: 'yz', label: 'YZ 平面（竖直）' }
-          ], def: 'xy', cap: '画笔笔迹所在的空间平面'
+            { v: 'face', label: '面内作图（点击选择面）' },
+            { v: 'free', label: '空间内作图（任意位置）' }
+          ], def: 'face', cap: '面内：点击几何体的哪个面就在哪个面内画；空间内：所见即所得'
         },
-        { key: 'clearPen', type: 'button', label: '清空笔迹' }
+        {
+          key: 'penColor', type: 'select', label: '画笔颜色',
+          options: [
+            { v: '#f59e0b', label: '琥珀橙' },
+            { v: '#dc2626', label: '朱红' },
+            { v: '#16a34a', label: '翠绿' },
+            { v: '#7c3aed', label: '紫色' },
+            { v: '#0891b2', label: '青色' },
+            { v: '#db2777', label: '玫红' },
+            { v: '#1f2937', label: '墨黑' }
+          ], def: '#f59e0b', cap: '笔迹颜色（可多色分层标注）'
+        },
+        { key: 'clearPen', type: 'button', label: '清空笔迹' },
+        { key: 'clearSeg', type: 'button', label: '清空连线' }
       ],
-      checks: [{ key: 'pen', label: '画笔模式（按住拖动在空间内作图）', def: false }],
-      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, penPlane: 'xy', penPoints: [] },
-      buttonAction: function (st) { st.penPoints = []; },   // 清空笔迹
+      checks: [
+        { key: 'pen', label: '画笔模式（按住拖动在空间内作图）', def: false },
+        { key: 'eraser', label: '橡皮擦模式（擦除笔迹）', def: false },
+        { key: 'seg', label: '选点连线（点击两个顶点连线）', def: false }
+      ],
+      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, penPlane: 'face', penFace: 0, penColor: '#f59e0b', penStrokes: [], segLines: [], segSel: null },
+      buttonAction: function (st, key) {
+        if (key === 'clearPen') st.penStrokes = [];
+        else if (key === 'clearSeg') { st.segLines = []; st.segSel = null; }
+      },
       draw: function (S) {
         // ---- 3D 模型：几何体线框（顶点绕 X/Y 轴旋转 → 正交投影） ----
         H.setView(6.5, 6.5);
         var data = shapeData(S.shape);   // 获取当前几何体的棱与面
 
         // 旋转 + 正交投影（观察者在 +z 方向看向原点）
-        function P(v) {
-          var b = S.ry * Math.PI / 180, a = S.rx * Math.PI / 180;
-          var cb = Math.cos(b), sb = Math.sin(b), ca = Math.cos(a), sa = Math.sin(a);
-          var x1 = v[0] * cb + v[2] * sb;
-          var z1 = -v[0] * sb + v[2] * cb;
-          var y2 = v[1] * ca - z1 * sa;
-          var z2 = v[1] * sa + z1 * ca;
-          return { x: x1, y: y2, z: z2 };
-        }
+        function P(v) { return rotatePt(v, S.ry, S.rx); }
         // 3D 坐标轴（浅灰；受「坐标系」开关控制）
         if (showCoord) {
           [[[0, 0, 0], [2.4, 0, 0]], [[0, 0, 0], [0, 2.4, 0]], [[0, 0, 0], [0, 0, 2.4]]].forEach(function (L) {
@@ -1913,19 +2104,45 @@
         front.forEach(function (L) {
           H.line(L.p1.x, L.p1.y, L.p2.x, L.p2.y, L.isEdge ? '#2563eb' : '#cbd5e1', L.isEdge ? 3 : 2);
         });
-        // 画笔笔迹（琥珀色，3D 点集，随几何体一起旋转；画在最上层作标注/辅助线）
-        if (S.penPoints && S.penPoints.length > 1) {
-          ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
-          ctx.beginPath();
-          S.penPoints.forEach(function (pt, idx) {
-            var pr = P(pt);
-            if (idx === 0) ctx.moveTo(H.X(pr.x), H.Y(pr.y)); else ctx.lineTo(H.X(pr.x), H.Y(pr.y));
+        // 画笔笔迹（多段独立笔迹，每段保留画时的颜色，3D 点集，随几何体一起旋转）
+        if (S.penStrokes && S.penStrokes.length) {
+          ctx.lineWidth = 2.5; ctx.setLineDash([]);
+          S.penStrokes.forEach(function (seg) {
+            if (!seg || !seg.pts || seg.pts.length < 2) return;
+            ctx.strokeStyle = seg.color || S.penColor || '#f59e0b';   // 每段用自己画时的颜色
+            ctx.beginPath();
+            seg.pts.forEach(function (pt, idx) {
+              var pr = P(pt);
+              if (idx === 0) ctx.moveTo(H.X(pr.x), H.Y(pr.y)); else ctx.lineTo(H.X(pr.x), H.Y(pr.y));
+            });
+            ctx.stroke();
           });
-          ctx.stroke();
-          // 笔迹起点小圆点
-          var p0 = P(S.penPoints[0]);
-          ctx.beginPath(); ctx.arc(H.X(p0.x), H.Y(p0.y), 3.5, 0, Math.PI * 2);
-          ctx.fillStyle = '#f59e0b'; ctx.fill();
+          // 每段笔迹起点小圆点（用该段颜色）
+          S.penStrokes.forEach(function (seg) {
+            if (!seg || !seg.pts || !seg.pts.length) return;
+            var p0 = P(seg.pts[0]);
+            ctx.beginPath(); ctx.arc(H.X(p0.x), H.Y(p0.y), 3.5, 0, Math.PI * 2);
+            ctx.fillStyle = seg.color || S.penColor || '#f59e0b';
+            ctx.fill();
+          });
+        }
+        // 选点连线（两点确定的线段，红色实线 + 端点圆点，随几何体旋转；画在最上层）
+        if (S.segLines && S.segLines.length) {
+          S.segLines.forEach(function (ln) {
+            var p1 = P(ln.p1), p2 = P(ln.p2);
+            ctx.strokeStyle = ln.color || '#dc2626'; ctx.lineWidth = 2.8; ctx.setLineDash([]);
+            ctx.beginPath(); ctx.moveTo(H.X(p1.x), H.Y(p1.y)); ctx.lineTo(H.X(p2.x), H.Y(p2.y)); ctx.stroke();
+            [p1, p2].forEach(function (p) {
+              ctx.beginPath(); ctx.arc(H.X(p.x), H.Y(p.y), 3.5, 0, Math.PI * 2);
+              ctx.fillStyle = ln.color || '#dc2626'; ctx.fill();
+            });
+          });
+        }
+        // 选点连线：当前选中的第一个点高亮圈
+        if (S.segSel) {
+          var pr = P(S.segSel);
+          ctx.beginPath(); ctx.arc(H.X(pr.x), H.Y(pr.y), 7, 0, Math.PI * 2);
+          ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2.5; ctx.stroke();
         }
       },
       formulas: function (S) {
@@ -1947,13 +2164,23 @@
         ]);
       },
       canvasNote: function (S) {
-        if (S.pen) {
-          var pn = S.penPlane === 'xy' ? 'XY' : (S.penPlane === 'xz' ? 'XZ' : 'YZ');
-          return '画笔模式：按住拖动在「' + pn + '平面」作图（笔迹随几何体旋转）；关闭画笔可拖拽视角';
+        if (S.eraser) return '橡皮擦模式：按住拖动擦除经过的笔迹（不可恢复，可配合「清空笔迹」重来）';
+        if (S.seg) {
+          // 状态感知：选中第 1 个顶点时提示下一步，否则显示已连线数（draw() 每次重绘都会刷新此提示）
+          if (S.segSel) return '已选中第 1 个顶点，再点击第 2 个顶点完成连线';
+          var n = S.segLines ? S.segLines.length : 0;
+          return n ? '选点连线：依次点击两个顶点连线（已连 ' + n + ' 条）；用「清空连线」清除'
+                    : '选点连线：依次点击两个顶点即可连线（红色）；可连多条，用「清空连线」清除';
         }
-        return '拖动「绕Y轴 / 绕X轴旋转」从任意角度观察；勾选画笔模式可在空间内作图';
+        if (S.pen) {
+          if (S.penPlane === 'face') {
+            return '画笔模式（面内作图）：点击几何体的哪个面，笔迹就画在哪个面内（当前：' + faceNameOf(S) + '）；切「空间内作图」可任意画';
+          }
+          return '画笔模式（空间内作图）：所见即所得，可沿任意面作画或画内部辅助线；关闭画笔可拖拽视角';
+        }
+        return '用右上角「左右/上下旋转」滑块调整视角；勾选画笔/橡皮擦/选点连线模式可在空间内作图';
       },
-      hint: '两个旋转滑块可从任意角度观察几何体；切换形状对比顶点/棱/面与欧拉公式。'
+      hint: '用图像右上角的「左右/上下旋转」滑块从任意角度观察；开启画笔/橡皮擦可在空间内作图；切换形状对比顶点/棱/面与欧拉公式。'
     },
 
     /* ---------- 数列与代数 ---------- */
@@ -2258,6 +2485,17 @@
     (m.checks || []).forEach(function (c) {
       panel.appendChild(chkRow(c.key, c.label, st[c.key], function (v) {
         S()[c.key] = v;   // 注意：重置按钮会替换状态对象，必须实时取 S()，不能用闭包捕获的 st
+        // 立体几何：画笔/橡皮擦/选点连线三者互斥（勾选一个自动取消其他）
+        if (m.id === 'solid' && (c.key === 'pen' || c.key === 'eraser' || c.key === 'seg') && v) {
+          ['pen', 'eraser', 'seg'].forEach(function (k) {
+            if (k !== c.key) {
+              S()[k] = false;
+              Array.prototype.forEach.call(panel.querySelectorAll('input[type="checkbox"]'), function (cb) {
+                if (cb.dataset.key === k) cb.checked = false;   // 同步其他复选框的 UI
+              });
+            }
+          });
+        }
         if (c.key === 'demo' && v) ensureDemoLoop();
         draw();
       }));
@@ -2286,6 +2524,7 @@
           if (o.v === st[p.key]) op.selected = true;
           sel.appendChild(op);
         });
+        sel.value = st[p.key];   // 显式设置当前值（选中对应选项）
         sel.addEventListener('change', function () {
           S()[p.key] = this.value;
           refresh();
@@ -2327,7 +2566,7 @@
         btn.className = 'miniBtn'; btn.id = 'sl_' + p.key;
         btn.textContent = p.label || p.key;
         btn.addEventListener('click', function () {
-          if (m.buttonAction) m.buttonAction(S());
+          if (m.buttonAction) m.buttonAction(S(), p.key);
           refresh();
         });
         div.appendChild(btn);
@@ -2371,6 +2610,7 @@
       });
       if (m.tick && states[m.id].demo) ensureDemoLoop();
       resetView();   // 重置参数的同时恢复默认视图
+      if (m.id === 'solid') syncRotBar();   // 同步图像边旋转滑块
       refresh();
     });
     panel.appendChild(btn);
@@ -2451,6 +2691,8 @@
     var W = canvas.width, Hh = canvas.height;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, W, Hh);
+    // 立体几何旋转滑块：仅 3D 模型时显示在图像右上角
+    document.getElementById('rotBar').style.display = currentId === 'solid' ? 'flex' : 'none';
     var m = current();
     m.draw(S());
     // 左下角提示（模型可自定义；椭圆演示时在 draw 内直接写入）
@@ -2500,31 +2742,152 @@
   }
   /* ---- 视图交互：拖拽平移视图；单击（未拖动）时放置椭圆演示点 P ---- */
   var dragStart = null, dragPan0 = null, dragMoved = false;
-  /* ---- 立体几何空间画笔：开启画笔模式后，按住拖动在所选平面记录 3D 笔迹 ---- */
-  var penDrawing = false, penLastScreen = null;
-  function addPenPoint(e) {
+  /* ---- 立体几何空间画笔/橡皮擦/选点连线：开启后优先处理，不触发平移 ---- */
+  var penDrawing = false, erasing = false, penLastScreen = null;
+  /** 屏幕拾取顶点：返回距离鼠标最近的顶点 {idx, pt, z}，超过阈值返回 null */
+  function pickVertexAt(e) {
     var st = states.solid;
-    if (!st.penPoints) st.penPoints = [];
+    var verts = shapeData(st.shape).verts || [];
+    if (!verts.length) return null;
     var rect = canvas.getBoundingClientRect();
     var sx = (e.clientX - rect.left) * (canvas.width / rect.width);
     var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
-    if (penLastScreen && Math.hypot(sx - penLastScreen.x, sy - penLastScreen.y) < 3) return;   // 去抖
+    var best = null, bestD = 1e9;
+    verts.forEach(function (v, i) {
+      var pr = rotatePt(v, st.ry, st.rx);
+      var px = H.X(pr.x), py = H.Y(pr.y);
+      var d = Math.hypot(px - sx, py - sy);
+      if (d < 24 && d < bestD) { bestD = d; best = { idx: i, pt: v }; }   // 24px 触摸友好阈值
+    });
+    return best;
+  }
+
+  /** 橡皮擦：删除经过鼠标位置（半径 TH 像素）的笔迹点，段自动拆分，颜色保留 */
+  function erasePenAt(e) {
+    var st = states.solid;
+    if (!st.penStrokes || !st.penStrokes.length) return;
+    var rect = canvas.getBoundingClientRect();
+    var sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+    var TH = 18;   // 擦除半径（物理像素）
+    var newStrokes = [];
+    st.penStrokes.forEach(function (seg) {
+      var cur = [];
+      seg.pts.forEach(function (pt) {
+        var pr = rotatePt(pt, st.ry, st.rx);
+        var px = H.X(pr.x), py = H.Y(pr.y);
+        if (Math.hypot(px - sx, py - sy) <= TH) {
+          if (cur.length >= 2) newStrokes.push({ color: seg.color, pts: cur });   // 收尾成段
+          cur = [];
+        } else {
+          cur.push(pt);
+        }
+      });
+      if (cur.length >= 2) newStrokes.push({ color: seg.color, pts: cur });
+    });
+    st.penStrokes = newStrokes;
+  }
+  function addPenPoint(e) {
+    var st = states.solid;
+    if (!st.penStrokes) st.penStrokes = [];
+    var seg = st.penStrokes[st.penStrokes.length - 1];
+    if (!seg) { seg = { color: st.penColor || '#f59e0b', pts: [] }; st.penStrokes.push(seg); }
+    var rect = canvas.getBoundingClientRect();
+    var sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+    if (penLastScreen && Math.hypot(sx - penLastScreen.x, sy - penLastScreen.y) < 1) return;   // 去抖（1px 内）
     penLastScreen = { x: sx, y: sy };
     var V = H.V;
     var wx = (sx - V.ox) / V.scale, wy = (V.oy - sy) / V.scale;   // 屏幕 → 世界坐标
-    // 按所选平面生成 3D 点（笔迹是真正的空间点，随几何体一起旋转）
-    var p;
-    if (st.penPlane === 'xz') p = [wx, 0, wy];
-    else if (st.penPlane === 'yz') p = [0, wx, wy];
-    else p = [wx, wy, 0];
-    if (st.penPoints.length >= 3000) st.penPoints.shift();   // 上限保护
-    st.penPoints.push(p);
+    // ★ 精准映射：解出深度 z，使笔迹点投影后精确落在鼠标位置（所见即所得）。
+    //   空间内作图模式（free）：z=0，笔迹 = 屏幕深度 0 对应的模型空间点，可沿任意面/内部作图。
+    //   面内作图模式（face）：笔迹约束在当前拾取的面（penFace）上（含面内裁剪）。
+    //   原理：p(z) = R⁻¹(wx, wy, z)（R 先绕 Y(b) 再绕 X(a)），代入面方程 n·p = d 解 z。
+    var b = st.ry * Math.PI / 180, a = st.rx * Math.PI / 180;
+    var cb = Math.cos(b), sb = Math.sin(b), ca = Math.cos(a), sa = Math.sin(a);
+    var z = 0;
+    if (st.penPlane === 'face') {
+      // 面模式：取当前拾取的面，计算法线与平面方程
+      var face = (shapeData(st.shape).faces || [])[st.penFace];
+      if (face && face.length >= 3) {
+        var f0 = face[0], f1 = face[1], f2 = face[2];
+        var ux = f1[0] - f0[0], uy = f1[1] - f0[1], uz = f1[2] - f0[2];
+        var vx = f2[0] - f0[0], vy = f2[1] - f0[1], vz = f2[2] - f0[2];
+        var nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+        var nl = Math.hypot(nx, ny, nz);
+        if (nl > 1e-12) {
+          nx /= nl; ny /= nl; nz /= nl;
+          var d = nx * f0[0] + ny * f0[1] + nz * f0[2];
+          var A = wx * cb + wy * sa * sb, B = ca * sb;
+          var C = wy * ca, D = sa;
+          var E = wx * sb - wy * sa * cb, F = ca * cb;
+          var den = -nx * B + ny * D + nz * F;
+          z = Math.abs(den) > 0.05 ? (d - nx * A - ny * C - nz * E) / den : 0;
+          var pFace = [A - z * B, C + z * D, E + z * F];
+          // 面内裁剪：超出面多边形范围的点不记录（笔迹只落在面上）
+          if (Math.abs(den) > 0.05 && !faceContains(face, pFace, [nx, ny, nz])) return;
+        }
+      }
+    }
+    var p = [
+      wx * cb + wy * sa * sb - z * ca * sb,
+      wy * ca + z * sa,
+      wx * sb - wy * sa * cb + z * ca * cb
+    ];
+    // 总点数上限保护（超过则丢弃最早一段）
+    var total = 0;
+    st.penStrokes.forEach(function (s) { total += s.pts ? s.pts.length : 0; });
+    if (total >= 3000) st.penStrokes.shift();
+    seg.pts.push(p);
   }
   canvas.addEventListener('pointerdown', function (e) {
+    if (currentId === 'solid' && S().seg) {
+      // 选点连线模式：点击顶点选点，两次点击之间连线
+      var vhit = pickVertexAt(e);
+      if (!vhit) {
+        noteEl.textContent = '请点击几何体的顶点（当前未选中）';
+        return;
+      }
+      var st = states.solid;
+      if (!st.segLines) st.segLines = [];
+      if (!st.segSel) {
+        st.segSel = vhit.pt;   // 记录第一个点（3D 坐标）
+        noteEl.textContent = '已选中第 1 个顶点，再点击第 2 个顶点完成连线';
+      } else {
+        st.segLines.push({ p1: st.segSel, p2: vhit.pt, color: st.penColor || '#dc2626' });
+        st.segSel = null;
+        noteEl.textContent = '已连线 ' + st.segLines.length + ' 条（可继续选点连线）';
+      }
+      draw();
+      return;
+    }
+    if (currentId === 'solid' && S().eraser) {
+      // 橡皮擦模式：优先擦除，不触发平移
+      erasing = true;
+      canvas.setPointerCapture(e.pointerId);
+      erasePenAt(e);
+      draw();
+      return;
+    }
     if (currentId === 'solid' && S().pen) {
-      // 画笔模式：优先作画，不触发平移
+      // 画笔模式：优先作画，不触发平移；每次按下开始新的一段笔迹（分段作图）
       penDrawing = true;
       penLastScreen = null;
+      // 面内作图模式：按下位置拾取面——点中哪个面，笔迹就画在哪个面内
+      if (states.solid.penPlane === 'face') {
+        var fidx = pickFaceAt(e);
+        if (fidx >= 0) {
+          states.solid.penFace = fidx;
+          noteEl.textContent = '已选择「' + faceNameOf(states.solid) + '」：按住拖动在该面内作图';
+        } else {
+          noteEl.textContent = '未点中几何体的面（当前面：' + faceNameOf(states.solid) + '），请点击面后再画';
+          penDrawing = false;
+          return;
+        }
+      }
+      if (!states.solid.penStrokes) states.solid.penStrokes = [];
+      // 新的一段：记录当前画笔颜色，之后换色不影响已画笔迹（每段颜色独立）
+      states.solid.penStrokes.push({ color: states.solid.penColor || '#f59e0b', pts: [] });
       canvas.setPointerCapture(e.pointerId);
       addPenPoint(e);
       draw();
@@ -2537,6 +2900,7 @@
     canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener('pointermove', function (e) {
+    if (erasing) { erasePenAt(e); draw(); return; }
     if (penDrawing) { addPenPoint(e); draw(); return; }
     if (!dragStart) return;
     var rect = canvas.getBoundingClientRect();
@@ -2550,7 +2914,13 @@
     }
   });
   canvas.addEventListener('pointerup', function (e) {
-    if (penDrawing) { penDrawing = false; penLastScreen = null; dragStart = null; return; }
+    if (erasing) { erasing = false; dragStart = null; draw(); return; }
+    if (penDrawing) {
+      addPenPoint(e);   // 抬起时补一个点，保证终点精确落在鼠标位置
+      penDrawing = false; penLastScreen = null; dragStart = null;
+      draw();
+      return;
+    }
     if (dragStart && !dragMoved) placeDemoPoint(e);   // 单击：放置椭圆演示点 P
     dragStart = null;
   });
@@ -2649,6 +3019,22 @@
     document.body.removeChild(a);
   });
 
+  // 立体几何旋转滑块（图像右上角）：左右旋转（绕Y）/ 上下旋转（绕X）
+  var rotY = document.getElementById('rotY');
+  var rotX = document.getElementById('rotX');
+  function syncRotBar() {
+    rotY.value = states.solid.ry;
+    rotX.value = states.solid.rx;
+  }
+  rotY.addEventListener('input', function () {
+    states.solid.ry = parseFloat(this.value);
+    draw();
+  });
+  rotX.addEventListener('input', function () {
+    states.solid.rx = parseFloat(this.value);
+    draw();
+  });
+
   // 公式区收放：点击标题条展开/收起（画布尺寸变化由 ResizeObserver 自动重绘）
   document.getElementById('faToggle').addEventListener('click', function () {
     var fa = document.getElementById('formulaArea');
@@ -2656,6 +3042,11 @@
     document.getElementById('faArrow').textContent = collapsed ? '▲' : '▼';
     draw();
   });
+  // 手机/小平板端默认折叠公式区，给绘图区留足空间（不影响电脑端）
+  if (window.matchMedia && window.matchMedia('(max-width: 1024px)').matches) {
+    document.getElementById('formulaArea').classList.add('collapsed');
+    document.getElementById('faArrow').textContent = '▲';
+  }
 })();
 </script>
 </body>
