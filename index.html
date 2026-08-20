@@ -284,47 +284,26 @@
   #valueTable td.v { color: #1e3a8a; font-weight: bold; text-align: right; font-variant-numeric: tabular-nums; }
 
   /* ============================================================
-     手机竖屏遮罩：本页面为横屏演示设计，竖屏时提示旋转手机
-     （横屏或电脑端自动隐藏，不显示此遮罩）
-     ============================================================ */
-  #rotateTip {
-    display: none;
-    position: fixed; inset: 0; z-index: 9999;
-    flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-    background: linear-gradient(160deg, #f0f6ff, #e6eefc);
-    text-align: center; padding: 30px;
-  }
-  #rotateTip .rt-phone {
-    font-size: 54px; line-height: 1;
-    transform: rotate(90deg);   /* 手机图标竖放示意：需旋转成横屏 */
-    opacity: .92;
-  }
-  #rotateTip .rt-title { font-size: 26px; font-weight: bold; color: #1e3a8a; }
-  #rotateTip .rt-sub { font-size: 16px; color: #64748b; line-height: 1.6; }
-  /* 仅手机/小平板竖屏时显示遮罩 */
-  @media (max-width: 1024px) and (orientation: portrait) {
-    #rotateTip { display: flex; }
-  }
-
-  /* ============================================================
      手机/小平板适配（媒体查询，不影响电脑端布局）
-     - 竖屏：显示上方「请横屏使用」遮罩，提示旋转手机
+     - 竖屏：画布在上、面板在下，整页上下滚动（控件不挤压、不堆叠）
      - 横屏：左侧窄面板 + 右侧画布，充分利用横向空间
      - 导航横向滚动、控件紧凑、公式区可折叠
      ============================================================ */
   @media (max-width: 1024px) {
-    body { font-size: 16px; }
+    body { font-size: 16px; overflow-y: auto; }
     header { padding: 6px 12px; gap: 8px; }
     header h1 { font-size: 20px; }
     header .sub { font-size: 13px; }
     #btnShot { font-size: 14px; padding: 5px 10px; }
-    #nav { margin: 8px 8px 0; padding: 6px 8px; gap: 5px; }
+    #nav { margin: 8px 8px 0; padding: 8px 10px; gap: 8px; }
     .catBtn { font-size: 13px; padding: 3px 10px; }
     .modelBtn { font-size: 13px; padding: 4px 10px; }
     .catRow, .modelRow { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    main { padding: 8px; gap: 8px; flex-direction: column; overflow-y: auto; }
-    #panel { width: 100%; flex: none; max-height: 34vh; padding: 10px 12px; gap: 7px; order: 2; }
-    #canvasWrap { flex: 1; min-height: 46vh; order: 1; }
+    /* 竖屏上下滚屏：画布固定高度在上，面板完整展开在下，整页滚动查看 */
+    main { flex: none; padding: 10px; gap: 14px; flex-direction: column; overflow: visible; }
+    #panel { width: 100%; flex: none; max-height: none; padding: 14px 16px; gap: 12px; order: 2; }
+    #canvasWrap { flex: none; height: 50vh; min-height: 300px; order: 1; }
+    #panelToggle { display: none; }   /* 竖屏整页滚动，无需面板收放按钮 */
     .panel-title { font-size: 16px; padding-bottom: 5px; }
     .ctrl-head label { font-size: 15px; }
     .ctrl-head .val { font-size: 19px; min-width: 56px; }
@@ -332,7 +311,7 @@
     input[type="range"] { height: 9px; margin: 4px 0 1px; }
     input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; border-width: 2px; }
     input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; border-width: 2px; }
-    .chk { font-size: 15px; gap: 8px; }
+    .chk { font-size: 15px; gap: 10px; }
     input[type="checkbox"] { width: 22px; height: 22px; }
     #btnReset { font-size: 16px; padding: 8px 0; border-radius: 9px; }
     .miniBtn { font-size: 14px; padding: 6px 0; }
@@ -375,13 +354,6 @@
 </head>
 
 <body>
-
-<!-- 手机竖屏遮罩：提示横屏使用（横屏 / 电脑端自动隐藏） -->
-<div id="rotateTip">
-  <div class="rt-phone">📱</div>
-  <div class="rt-title">请横屏使用</div>
-  <div class="rt-sub">本页面为横屏演示设计<br>旋转手机 90° 后自动进入演示模式</div>
-</div>
 
 <!-- ================= 顶部标题 ================= -->
 <header>
