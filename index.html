@@ -78,6 +78,18 @@
     display: flex; flex-direction: column; gap: 12px;
     overflow-y: auto;
   }
+  /* 面板收放：左侧竖条按钮，点击收起/展开参数面板（画布自动占满） */
+  #panelToggle {
+    flex: none; align-self: stretch;
+    width: 30px;
+    background: #ffffff; border: none; border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(30, 60, 120, .08);
+    color: #1e3a8a; font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s;
+  }
+  #panelToggle:hover { background: #eef2f9; }
+  #panel.collapsed { display: none; }   /* 收起状态：面板不占位，画布铺满 */
   .panel-title {
     font-size: 22px; font-weight: bold; color: #1e3a8a;
     padding-bottom: 8px; border-bottom: 2px solid #e2e8f0;
@@ -345,6 +357,7 @@
     main { flex-direction: row; overflow: hidden; }
     #panel { width: 210px; max-height: none; order: 1; }
     #canvasWrap { flex: 1; min-height: 0; order: 2; }
+    #panelToggle { width: 22px; border-radius: 8px; font-size: 13px; order: 0; }
   }
 </style>
 
@@ -384,6 +397,9 @@
 
 <!-- ================= 中部：控制面板 + 绘图区 ================= -->
 <main>
+  <!-- 面板收放按钮：点击收起/展开左侧参数面板（画布自动占满） -->
+  <button id="panelToggle" title="收起控制面板" aria-label="收起/展开控制面板">◀</button>
+
   <!-- ① 参数控制面板（内容由 JS 按当前模型动态生成） -->
   <aside id="panel"></aside>
 
@@ -3150,6 +3166,14 @@
     var collapsed = fa.classList.toggle('collapsed');
     document.getElementById('faArrow').textContent = collapsed ? '▲' : '▼';
     draw();
+  });
+
+  // 控制面板收放：点击左侧竖条收起/展开参数面板（画布尺寸变化由 ResizeObserver 自动重绘）
+  var panelToggle = document.getElementById('panelToggle');
+  panelToggle.addEventListener('click', function () {
+    var collapsed = panel.classList.toggle('collapsed');
+    panelToggle.textContent = collapsed ? '▶' : '◀';
+    panelToggle.title = collapsed ? '展开控制面板' : '收起控制面板';
   });
   // 手机/小平板端默认折叠公式区，给绘图区留足空间（不影响电脑端）
   if (window.matchMedia && window.matchMedia('(max-width: 1024px)').matches) {
