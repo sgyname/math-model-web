@@ -175,6 +175,15 @@
   }
   textarea.exprInput:focus { outline: none; border-color: #2563eb; }
 
+  /* 面板小按钮（如立体几何「清空笔迹」） */
+  .miniBtn {
+    font-size: 18px; font-weight: bold;
+    color: #1e3a8a; background: #eef2ff;
+    border: 2px solid #c7d2fe; border-radius: 10px;
+    padding: 9px 0; width: 100%; cursor: pointer; margin: 4px 0;
+  }
+  .miniBtn:hover { background: #e0e7ff; }
+
   .hint { font-size: 15px; color: #64748b; line-height: 1.6; }
 
   #canvasWrap {
@@ -1832,9 +1841,20 @@
           ], def: 'cuboid', cap: '切换几何体'
         },
         { key: 'ry', label: '绕Y轴旋转', min: -180, max: 180, step: 1, def: 30, cap: '水平转动视角' },
-        { key: 'rx', label: '绕X轴旋转', min: -90, max: 90, step: 1, def: 15, cap: '俯仰转动视角' }
+        { key: 'rx', label: '绕X轴旋转', min: -90, max: 90, step: 1, def: 15, cap: '俯仰转动视角' },
+        {
+          key: 'penPlane', type: 'select', label: '作图平面',
+          options: [
+            { v: 'xy', label: 'XY 平面（水平）' },
+            { v: 'xz', label: 'XZ 平面（竖直）' },
+            { v: 'yz', label: 'YZ 平面（竖直）' }
+          ], def: 'xy', cap: '画笔笔迹所在的空间平面'
+        },
+        { key: 'clearPen', type: 'button', label: '清空笔迹' }
       ],
-      defaults: { shape: 'cuboid', ry: 30, rx: 15 },
+      checks: [{ key: 'pen', label: '画笔模式（按住拖动在空间内作图）', def: false }],
+      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, penPlane: 'xy', penPoints: [] },
+      buttonAction: function (st) { st.penPoints = []; },   // 清空笔迹
       draw: function (S) {
         // ---- 3D 模型：几何体线框（顶点绕 X/Y 轴旋转 → 正交投影） ----
         H.setView(6.5, 6.5);
@@ -1896,6 +1916,20 @@
         front.forEach(function (L) {
           H.line(L.p1.x, L.p1.y, L.p2.x, L.p2.y, L.isEdge ? '#2563eb' : '#cbd5e1', L.isEdge ? 3 : 2);
         });
+        // 画笔笔迹（琥珀色，3D 点集，随几何体一起旋转；画在最上层作标注/辅助线）
+        if (S.penPoints && S.penPoints.length > 1) {
+          ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+          ctx.beginPath();
+          S.penPoints.forEach(function (pt, idx) {
+            var pr = P(pt);
+            if (idx === 0) ctx.moveTo(H.X(pr.x), H.Y(pr.y)); else ctx.lineTo(H.X(pr.x), H.Y(pr.y));
+          });
+          ctx.stroke();
+          // 笔迹起点小圆点
+          var p0 = P(S.penPoints[0]);
+          ctx.beginPath(); ctx.arc(H.X(p0.x), H.Y(p0.y), 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#f59e0b'; ctx.fill();
+        }
       },
       formulas: function (S) {
         var info = SHAPE_INFO[S.shape];
@@ -1915,7 +1949,13 @@
           ['表面积', info.surfP.replace('S = ', '')]
         ]);
       },
-      canvasNote: function () { return '拖动「绕Y轴 / 绕X轴旋转」从任意角度观察立体图形'; },
+      canvasNote: function (S) {
+        if (S.pen) {
+          var pn = S.penPlane === 'xy' ? 'XY' : (S.penPlane === 'xz' ? 'XZ' : 'YZ');
+          return '画笔模式：按住拖动在「' + pn + '平面」作图（笔迹随几何体旋转）；关闭画笔可拖拽视角';
+        }
+        return '拖动「绕Y轴 / 绕X轴旋转」从任意角度观察；勾选画笔模式可在空间内作图';
+      },
       hint: '两个旋转滑块可从任意角度观察几何体；切换形状对比顶点/棱/面与欧拉公式。'
     },
 
@@ -2177,6 +2217,7 @@
     lab.className = 'chk';
     var inp = document.createElement('input');
     inp.type = 'checkbox'; inp.checked = checked;
+    inp.dataset.key = key;   // 标注控件 key，便于识别与调试
     inp.addEventListener('change', function () { onChange(inp.checked); });
     lab.appendChild(inp);
     lab.appendChild(document.createTextNode(label));
@@ -2283,6 +2324,16 @@
           if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) this.blur();   // Ctrl+Enter 确认
         });
         div.appendChild(ta);
+      } else if (p.type === 'button') {
+        // 操作按钮（如立体几何的「清空笔迹」）
+        var btn = document.createElement('button');
+        btn.className = 'miniBtn'; btn.id = 'sl_' + p.key;
+        btn.textContent = p.label || p.key;
+        btn.addEventListener('click', function () {
+          if (m.buttonAction) m.buttonAction(S());
+          refresh();
+        });
+        div.appendChild(btn);
       } else {
         var val = document.createElement('span');
         val.className = 'val'; val.id = 'val_' + p.key; val.textContent = fmt(st[p.key]);
@@ -2452,7 +2503,36 @@
   }
   /* ---- 视图交互：拖拽平移视图；单击（未拖动）时放置椭圆演示点 P ---- */
   var dragStart = null, dragPan0 = null, dragMoved = false;
+  /* ---- 立体几何空间画笔：开启画笔模式后，按住拖动在所选平面记录 3D 笔迹 ---- */
+  var penDrawing = false, penLastScreen = null;
+  function addPenPoint(e) {
+    var st = states.solid;
+    if (!st.penPoints) st.penPoints = [];
+    var rect = canvas.getBoundingClientRect();
+    var sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+    if (penLastScreen && Math.hypot(sx - penLastScreen.x, sy - penLastScreen.y) < 3) return;   // 去抖
+    penLastScreen = { x: sx, y: sy };
+    var V = H.V;
+    var wx = (sx - V.ox) / V.scale, wy = (V.oy - sy) / V.scale;   // 屏幕 → 世界坐标
+    // 按所选平面生成 3D 点（笔迹是真正的空间点，随几何体一起旋转）
+    var p;
+    if (st.penPlane === 'xz') p = [wx, 0, wy];
+    else if (st.penPlane === 'yz') p = [0, wx, wy];
+    else p = [wx, wy, 0];
+    if (st.penPoints.length >= 3000) st.penPoints.shift();   // 上限保护
+    st.penPoints.push(p);
+  }
   canvas.addEventListener('pointerdown', function (e) {
+    if (currentId === 'solid' && S().pen) {
+      // 画笔模式：优先作画，不触发平移
+      penDrawing = true;
+      penLastScreen = null;
+      canvas.setPointerCapture(e.pointerId);
+      addPenPoint(e);
+      draw();
+      return;
+    }
     var rect = canvas.getBoundingClientRect();
     dragStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     dragPan0 = { x: viewPanX, y: viewPanY };
@@ -2460,6 +2540,7 @@
     canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener('pointermove', function (e) {
+    if (penDrawing) { addPenPoint(e); draw(); return; }
     if (!dragStart) return;
     var rect = canvas.getBoundingClientRect();
     var dx = (e.clientX - rect.left) - dragStart.x;
@@ -2472,6 +2553,7 @@
     }
   });
   canvas.addEventListener('pointerup', function (e) {
+    if (penDrawing) { penDrawing = false; penLastScreen = null; dragStart = null; return; }
     if (dragStart && !dragMoved) placeDemoPoint(e);   // 单击：放置椭圆演示点 P
     dragStart = null;
   });
