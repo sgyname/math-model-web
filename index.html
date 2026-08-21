@@ -663,6 +663,42 @@
     return (f(x + h) - f(x - h)) / (2 * h);
   }
 
+  /** 数值分析函数单调性：在 [xmin, xmax] 上采样 f′(x) 的符号，
+      输出单调区间描述（如「递增：(−1, 1)；递减：(−∞, −1)、(1, +∞)」）。
+      原理：f′(x)>0 递增、f′(x)<0 递减；f′(x)=0 的点并入当前区间，
+      不在定义域的点（f′ 非有限）断开区间。教学演示用数值近似。 */
+  function monotonicityText(f, xmin, xmax) {
+    var N = 400, inc = [], dec = [];
+    var curSign = 0, curStart = xmin;
+    function flush(end) {
+      if (curSign === 1) inc.push([curStart, end]);
+      else if (curSign === -1) dec.push([curStart, end]);
+    }
+    for (var i = 0; i <= N; i++) {
+      var x = xmin + (xmax - xmin) * i / N;
+      var d = numDeriv(f, x);
+      var s;
+      if (!isFinite(d)) s = 2;                       // 2 = 定义域空洞（断开区间）
+      else s = d > 1e-9 ? 1 : (d < -1e-9 ? -1 : 0);  // 1 增 / −1 减 / 0 平（并入当前区间）
+      if (i === 0) { curSign = s; continue; }
+      if (s === 2 || (s !== curSign && s !== 0 && curSign !== 0)) {
+        flush(x);
+        curSign = s; curStart = x;
+      }
+    }
+    flush(xmax);
+    if (!inc.length && !dec.length) return '常函数或不可导（f′(x) 无正负变化）';
+    function seg(a, b) {
+      var la = a <= xmin + 1e-9 ? '−∞' : fmt(a);
+      var lb = b >= xmax - 1e-9 ? '+∞' : fmt(b);
+      return '(' + la + ', ' + lb + ')';
+    }
+    var parts = [];
+    if (inc.length) parts.push('递增：' + inc.map(function (s) { return seg(s[0], s[1]); }).join('、'));
+    if (dec.length) parts.push('递减：' + dec.map(function (s) { return seg(s[0], s[1]); }).join('、'));
+    return parts.join('；');
+  }
+
   /** 把用户输入的表达式转成可安全显示的 LaTeX（用于公式区） */
   function fnToLatex(expr) {
     var s = String(expr || '').replace(/[\\{}#$&_~%]/g, '\\$&');
@@ -928,6 +964,10 @@
   var MARK_COLORS = ['#2563eb', '#d97706', '#0f766e', '#dc2626', '#7c3aed', '#0891b2', '#65a30d', '#db2777'];
   var MARK_COLOR_NAMES = ['宝蓝', '琥珀橙', '深青', '朱红', '紫色', '亮青', '草绿', '玫红'];
 
+  /* ---- 立体几何面着色色板：12 色齐全（红橙黄绿青蓝紫粉棕灰黑白） ---- */
+  var FACE_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#a16207', '#64748b', '#0f172a', '#f8fafc'];
+  var FACE_COLOR_NAMES = ['红色', '橙色', '黄色', '绿色', '青色', '蓝色', '紫色', '粉色', '棕色', '灰色', '黑色', '白色'];
+
   /** 编译多个函数：按换行/分号拆分，每段编译为一个 {expr, fn, err}；另支持多个隐式方程 F(x,y)=0 */
   function compileMultiFn(st) {
     var parts = String(st.expr || '').split(/[;\n]+/).map(function (s) { return s.trim(); }).filter(Boolean);
@@ -1022,22 +1062,39 @@
      ================================================================ */
   var mathReady = false;
   var typeTimer = null;
+  var typeBusy = false;     // MathJax 正在排版中
+  var typePending = false;  // 排版期间内容又更新：完成后自动补排最新内容
 
+  /** 设置公式文本：先显示可读的纯文本（plain），并记住 LaTeX 待排版。
+      关键：拖动滑块时 updateFormulas 高频调用，公式区始终保持纯文本（可读），
+      不会闪现 LaTeX 源码（乱码）；等停止拖动后才由 typeset() 写入 LaTeX 并排版。 */
   function setMath(el, latex, plain) {
-    if (mathReady) el.innerHTML = '\\(' + latex + '\\)';
-    else el.textContent = plain;
+    el.textContent = plain;
+    el.dataset.latex = latex;   // 排版时再写入（dataset 随元素保存）
   }
   function setTable(rows) {
     vtBody.innerHTML = rows.map(function (r) {
       return '<tr><td class="k">' + r[0] + '</td><td class="v">' + r[1] + '</td></tr>';
     }).join('');
   }
+  /** 实际排版：把三个公式位的最新 LaTeX 写入 DOM，再交给 MathJax（串行化，不堆积） */
+  function doTypeset() {
+    if (!mathReady) return;
+    [fEq, fC, fE].forEach(function (el) {
+      if (el.dataset && el.dataset.latex !== undefined) el.innerHTML = '\\(' + el.dataset.latex + '\\)';
+    });
+    if (typeBusy) { typePending = true; return; }
+    typeBusy = true;
+    MathJax.typesetPromise([document.getElementById('formulaArea')]).catch(function () {}).then(function () {
+      typeBusy = false;
+      if (typePending) { typePending = false; doTypeset(); }
+    });
+  }
+  /** 公式排版调度：短防抖（停止更新一段时间后才排版，拖动过程中一直保持纯文本可读） */
   function typeset() {
     if (!mathReady) return;
     clearTimeout(typeTimer);
-    typeTimer = setTimeout(function () {
-      MathJax.typesetPromise([document.getElementById('formulaArea')]).catch(function () {});
-    }, 120);
+    typeTimer = setTimeout(doTypeset, 250);
   }
 
   /* ================================================================
@@ -1876,9 +1933,9 @@
       formulas: function (S) {
         if (S.fn) { formulasUserFn(S); return; }   // 自定义函数模式
         setMath(fEq, buildTrigLatex('cos', S.A, S.w, S.phi, S.B), buildTrigPlain('cos', S.A, S.w, S.phi, S.B));
-        var T = 2 * Math.PI / S.w;
-        setMath(fC, '\\text{振幅}A=' + fmt(S.A) + ',\\ \\text{周期}T=' + fmt2(T) + ',\\ \\text{频率}f=' + fmt2(1 / T),
-          '振幅 A=' + fmt(S.A) + '，周期 T=' + fmt2(T) + '，频率 f=' + fmt2(1 / T));
+        var T = 2 * Math.PI / S.w;   // 周期：模型计算
+        setMath(fC, '\\text{振幅}A=' + fmt(S.A) + ',\\ \\text{周期}T=\\frac{2\\pi}{\\omega}=' + fmt2(T) + ',\\ \\text{频率}f=\\frac{1}{T}=' + fmt2(1 / T),
+          '振幅 A=' + fmt(S.A) + '，周期 T=2π/ω=' + fmt2(T) + '，频率 f=' + fmt2(1 / T));
         setMath(fE, '\\text{初相}\\varphi=' + fmt(S.phi) + ',\\ \\text{值域}[' + fmt(S.B - S.A) + ',' + fmt(S.B + S.A) + ']',
           '初相 φ=' + fmt(S.phi) + '，值域 [' + fmt(S.B - S.A) + ', ' + fmt(S.B + S.A) + ']');
         setTable([
@@ -2238,16 +2295,24 @@
           options: MARK_COLORS.map(function (c, i) { return { v: c, label: MARK_COLOR_NAMES[i] }; }),
           def: MARK_COLORS[0], cap: '画笔笔迹与选点连线共用的颜色（可多色分层标注）'
         },
+        {
+          key: 'faceColor', type: 'select', label: '面颜色',
+          // 面着色色板：12 色齐全（红橙黄绿青蓝紫粉棕灰黑白），与画笔色板相互独立
+          options: FACE_COLORS.map(function (c, i) { return { v: c, label: FACE_COLOR_NAMES[i] }; }),
+          def: FACE_COLORS[0], cap: '「面着色模式」下点击面涂色：优先涂由选点连线围成的内部面，也可涂几何体外表面'
+        },
         { key: 'undo', type: 'button', label: '返回上一步' },
         { key: 'clearPen', type: 'button', label: '清空笔迹' },
-        { key: 'clearSeg', type: 'button', label: '清空连线' }
+        { key: 'clearSeg', type: 'button', label: '清空连线' },
+        { key: 'clearFace', type: 'button', label: '清除面颜色' }
       ],
       checks: [
-        { key: 'pen', label: '画笔模式（按住拖动在空间内作图）', def: false },
+        { key: 'pen', label: '画笔模式（按住拖动在空间内作图，Shift 画直线）', def: false },
         { key: 'eraser', label: '橡皮擦模式（擦除笔迹）', def: false },
-        { key: 'seg', label: '选点连线（点击两个顶点连线）', def: false }
+        { key: 'seg', label: '选点连线（点击两个顶点连线）', def: false },
+        { key: 'paintFace', label: '面着色模式（点击面涂色）', def: false }
       ],
-      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, penPlane: 'face', penFace: 0, penColor: MARK_COLORS[0], penStrokes: [], segLines: [], segSel: null, interPts: [], undoStack: [] },
+      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, paintFace: false, penPlane: 'face', penFace: 0, penColor: MARK_COLORS[0], faceColor: FACE_COLORS[0], penStrokes: [], segLines: [], segSel: null, interPts: [], faceColors: {}, loopFaces: [], undoStack: [] },
       buttonAction: function (st, key) {
         if (key === 'undo') {
           // 返回上一步：撤销最近一次作图操作（笔迹段 / 连线 / 选中的第一个点）
@@ -2263,6 +2328,12 @@
         }
         else if (key === 'clearPen') { st.penStrokes = []; st.undoStack = []; }
         else if (key === 'clearSeg') { st.segLines = []; st.segSel = null; st.interPts = []; st.undoStack = []; }
+        else if (key === 'clearFace') {
+          // 清除面颜色：外表面着色 + 内部面（连线闭合环）着色一并清除
+          st.faceColors = {}; st.lastFaceInfo = '';
+          if (st.loopFaces) st.loopFaces.forEach(function (fc) { fc.color = null; });
+          st.undoStack = [];
+        }
       },
       draw: function (S) {
         // ---- 3D 模型：几何体线框（顶点绕 X/Y 轴旋转 → 正交投影） ----
@@ -2282,8 +2353,8 @@
           H.text(P([0, 0, 2.5]).x, P([0, 0, 2.5]).y, 'z', { color: '#94a3b8', size: 15 });
         }
 
-        // 面（仅长方体）：填充朝向观察者的面（法向 z 分量 > 0）
-        data.faces.forEach(function (f) {
+        // 面：填充朝向观察者的面（法向 z 分量 > 0）；已着色的面用其颜色（不透明），未着色用主题半透明填充
+        data.faces.forEach(function (f, fi) {
           var pts = f.map(P);
           var e1x = pts[1].x - pts[0].x, e1y = pts[1].y - pts[0].y;
           var e2x = pts[2].x - pts[0].x, e2y = pts[2].y - pts[0].y;
@@ -2294,10 +2365,24 @@
               if (i === 0) ctx.moveTo(H.X(p.x), H.Y(p.y)); else ctx.lineTo(H.X(p.x), H.Y(p.y));
             });
             ctx.closePath();
-            ctx.fillStyle = THEME.faceFill;   // 面填充（随日/夜间主题）
+            ctx.fillStyle = (S.faceColors && S.faceColors[fi]) || THEME.faceFill;   // 着色面优先
             ctx.fill();
           }
         });
+        // 由选点连线围成的内部面（闭合环）：已着色的面半透明填充（画在棱之前，不遮挡线框）
+        if (S.loopFaces && S.loopFaces.length) {
+          S.loopFaces.forEach(function (fc) {
+            if (!fc.color) return;
+            var prs = fc.pts.map(P);
+            ctx.beginPath();
+            prs.forEach(function (p, i) {
+              if (i === 0) ctx.moveTo(H.X(p.x), H.Y(p.y)); else ctx.lineTo(H.X(p.x), H.Y(p.y));
+            });
+            ctx.closePath();
+            ctx.fillStyle = fc.color + '99';   // 60% 不透明，能看到内部结构
+            ctx.fill();
+          });
+        }
         // 棱：先画背面（中点 z < 0，远离观察者），再画正面（z > 0）
         // 区分「几何体边」与「内部结构线」：
         //   边（深色突出）= 多面体的棱、旋转体的顶/底圆环
@@ -2400,15 +2485,21 @@
           return n ? '选点连线：依次点击两个点连线（已连 ' + n + ' 条，颜色同画笔色板；连线交点也可继续选）；用「清空连线」清除'
                     : '选点连线：依次点击两个顶点或连线交点即可连线（颜色同画笔色板）；可连多条，用「清空连线」清除';
         }
+        if (S.paintFace) {
+          var nf = 0;
+          for (var fk in (S.faceColors || {})) nf++;
+          if (S.loopFaces) S.loopFaces.forEach(function (fc) { if (fc.color) nf++; });
+          return '面着色模式：点击「选点连线围成的内部面」或几何体外表面涂色（已涂 ' + nf + ' 个面' + (S.lastFaceInfo ? '，最近涂色：' + S.lastFaceInfo : '') + '）；「清除面颜色」可全部擦除';
+        }
         if (S.pen) {
           if (S.penPlane === 'face') {
-            return '画笔模式（面内作图）：点击几何体的哪个面，笔迹就画在哪个面内（当前：' + faceNameOf(S) + '）；切「空间内作图」可任意画';
+            return '画笔模式（面内作图）：点击几何体的哪个面，笔迹就画在哪个面内（当前：' + faceNameOf(S) + '）；按住 Shift 拖动画直线；切「空间内作图」可任意画';
           }
-          return '画笔模式（空间内作图）：所见即所得，可沿任意面作画或画内部辅助线；关闭画笔可拖拽视角';
+          return '画笔模式（空间内作图）：所见即所得，可沿任意面作画或画内部辅助线；按住 Shift 拖动画直线；关闭画笔可拖拽视角';
         }
-        return '用右上角「左右/上下旋转」滑块调整视角；勾选画笔/橡皮擦/选点连线模式可在空间内作图';
+        return '用右上角「左右/上下旋转」滑块调整视角；勾选画笔/橡皮擦/选点连线/面着色模式可在空间内作图';
       },
-      hint: '用图像右上角的「左右/上下旋转」滑块从任意角度观察；开启画笔/橡皮擦可在空间内作图；「返回上一步」可撤销最近一次笔迹或连线。'
+      hint: '用图像右上角的「左右/上下旋转」滑块从任意角度观察；开启画笔/橡皮擦可在空间内作图，画笔下按住 Shift 画直线；用「选点连线」围成闭合图形后，面着色模式可给该内部面涂色（也可涂几何体外表面）；「返回上一步」可撤销最近一次笔迹或连线。'
     },
 
     /* ---------- 数列与代数 ---------- */
@@ -2438,7 +2529,9 @@
           'aₙ = a₁ + (n−1)d = ' + fmt(a1) + ' + ' + fmt(d) + '(n−1)');
         setMath(fC, '\\text{公差}d=' + fmt(d) + ',\\ a_{5}=' + fmt(a1 + 4 * d) + ',\\ a_{10}=' + fmt(a1 + 9 * d),
           '公差 d=' + fmt(d) + '，a₅=' + fmt(a1 + 4 * d) + '，a₁₀=' + fmt(a1 + 9 * d));
-        setMath(fE, 'S_{n}=na_{1}+\\frac{n(n-1)}{2}d', 'Sₙ = n·a₁ + n(n−1)d/2');
+        // 前 n 项和的两种等价公式：Sₙ = n·a₁ + n(n−1)d/2 = n(a₁+aₙ)/2
+        setMath(fE, 'S_{n}=na_{1}+\\frac{n(n-1)}{2}d=\\frac{n(a_{1}+a_{n})}{2}',
+          'Sₙ = n·a₁ + n(n−1)d/2 = n(a₁+aₙ)/2');
         fNote.textContent = d > 0 ? 'd>0：递增数列' : (d < 0 ? 'd<0：递减数列' : 'd=0：常数列');
         setTable([
           ['首项 a₁', fmt(a1)], ['公差 d', fmt(d)],
@@ -2639,6 +2732,9 @@
         }
         var f = S.fn, x0 = S.x0, y0 = f(x0);
         var k = isFinite(y0) ? numDeriv(f, x0) : NaN;
+        // 单调性分析：在视野范围采样 f′(x) 的符号（数值方法，模型计算入口）
+        var hx = Math.max(6, Math.abs(x0) + 1.5);
+        var mono = monotonicityText(f, -hx, hx);
         setMath(fEq, 'f(x)=' + fnToLatex(S.expr), 'f(x) = ' + S.expr);
         setMath(fC, '\\text{切点}P(' + fmt(x0) + ',' + (isFinite(y0) ? fmt(y0) : '—') + '),\\ \\text{斜率}k=f\'(x_{0})\\approx' + (isFinite(k) ? fmt2(k) : '—'),
           '切点 P(' + fmt(x0) + ', ' + (isFinite(y0) ? fmt(y0) : '—') + ')，斜率 k = f′(x₀) ≈ ' + (isFinite(k) ? fmt2(k) : '—'));
@@ -2648,13 +2744,14 @@
           isFinite(k)
             ? '切线：y = ' + fmt(k) + '(x−' + fmt(x0) + ')' + (y0 >= 0 ? '+' + fmt(y0) : '−' + fmt(-y0))
             : '切线不可作（切点不在定义域内）');
-        fNote.textContent = '数值求导：f′(x₀) ≈ [f(x₀+h) − f(x₀−h)] / (2h)，h 取很小的数';
+        fNote.textContent = '数值求导：f′(x₀) ≈ [f(x₀+h) − f(x₀−h)] / (2h)，h 取很小的数；单调性：f′(x)>0 递增、f′(x)<0 递减';
         setTable([
           ['表达式', S.expr],
           ['x₀', fmt(x0)],
           ['f(x₀)', isFinite(y0) ? fmt(y0) : '—'],
           ['f′(x₀) ≈', isFinite(k) ? fmt2(k) : '—'],
-          ['切线方程', isFinite(k) ? 'y = ' + fmt(k) + 'x ' + (y0 - k * x0 >= 0 ? '+' + fmt(y0 - k * x0) : '-' + fmt(k * x0 - y0)) : '—']
+          ['切线方程', isFinite(k) ? 'y = ' + fmt(k) + 'x ' + (y0 - k * x0 >= 0 ? '+' + fmt(y0 - k * x0) : '-' + fmt(k * x0 - y0)) : '—'],
+          ['单调性', mono]
         ]);
       },
       hint: '在输入框键入任意函数（回车确认）即可生成图像；拖动 x₀ 观察切线斜率 f′(x₀) 的变化。'
@@ -2726,9 +2823,9 @@
     (m.checks || []).forEach(function (c) {
       panel.appendChild(chkRow(c.key, c.label, st[c.key], function (v) {
         S()[c.key] = v;   // 注意：重置按钮会替换状态对象，必须实时取 S()，不能用闭包捕获的 st
-        // 立体几何：画笔/橡皮擦/选点连线三者互斥（勾选一个自动取消其他）
-        if (m.id === 'solid' && (c.key === 'pen' || c.key === 'eraser' || c.key === 'seg') && v) {
-          ['pen', 'eraser', 'seg'].forEach(function (k) {
+        // 立体几何：画笔/橡皮擦/选点连线/面着色四者互斥（勾选一个自动取消其他）
+        if (m.id === 'solid' && (c.key === 'pen' || c.key === 'eraser' || c.key === 'seg' || c.key === 'paintFace') && v) {
+          ['pen', 'eraser', 'seg', 'paintFace'].forEach(function (k) {
             if (k !== c.key) {
               S()[k] = false;
               Array.prototype.forEach.call(panel.querySelectorAll('input[type="checkbox"]'), function (cb) {
@@ -2944,8 +3041,9 @@
   }
 
   function updateFormulas() {
-    // 先清空，再填当前模型的公式
+    // 先清空，再填当前模型的公式（同时清除待排版标记，避免错误分支残留旧 LaTeX）
     fEq.innerHTML = ''; fC.innerHTML = ''; fE.innerHTML = ''; fNote.textContent = '';
+    delete fEq.dataset.latex; delete fC.dataset.latex; delete fE.dataset.latex;
     vtBody.innerHTML = '';
     current().formulas(S());
     typeset();
@@ -2985,6 +3083,7 @@
   var dragStart = null, dragPan0 = null, dragMoved = false;
   /* ---- 立体几何空间画笔/橡皮擦/选点连线：开启后优先处理，不触发平移 ---- */
   var penDrawing = false, erasing = false, penLastScreen = null;
+  var shiftDown = false;   // Shift 键状态：画笔模式下按住 Shift 拖动 → 画直线
 
   /** 3D 线段求交：线段 a1a2 与 b1b2 有真实交点时返回交点坐标 [x,y,z]，否则返回 null。
       原理：两线参数化 a1+t·d1、b1+s·d2，交点满足 a1+t·d1=b1+s·d2；
@@ -3004,6 +3103,22 @@
     var qx = b1[0] + s * d2x, qy = b1[1] + s * d2y, qz = b1[2] + s * d2z;
     if (Math.hypot(px - qx, py - qy, pz - qz) > 1e-5) return null;   // 空间交错（不相交但投影可能看起来相交）
     return [px, py, pz];
+  }
+
+  /** 三点共线判断（用于剔除退化三角形环） */
+  function collinear3(a, b, c) {
+    var abx = b[0] - a[0], aby = b[1] - a[1], abz = b[2] - a[2];
+    var acx = c[0] - a[0], acy = c[1] - a[1], acz = c[2] - a[2];
+    var cx = aby * acz - abz * acy, cy = abz * acx - abx * acz, cz = abx * acy - aby * acx;
+    return Math.hypot(cx, cy, cz) < 1e-8;
+  }
+  /** 四点共面判断（四面体体积 ≈ 0，用于确认四边形环在同一平面内） */
+  function coplanar4(a, b, c, d) {
+    var abx = b[0] - a[0], aby = b[1] - a[1], abz = b[2] - a[2];
+    var acx = c[0] - a[0], acy = c[1] - a[1], acz = c[2] - a[2];
+    var adx = d[0] - a[0], ady = d[1] - a[1], adz = d[2] - a[2];
+    var vol = abx * (acy * adz - acz * ady) - aby * (acx * adz - acz * adx) + abz * (acx * ady - acy * adx);
+    return Math.abs(vol) < 1e-6;
   }
 
   /** 重算所有"连线交点"：连线×连线、连线×几何体棱，去重并剔除与顶点重合的点。
@@ -3039,9 +3154,123 @@
       out.push(p);
     });
     st.interPts = out;
+    // 同步重算"内部面"（连线闭合环）；仅当连线内容变化时执行（缓存标记，避免每次重绘都枚举）
+    var sig = lines.length + ':' + (lines.length ? lines[lines.length - 1].p1.join('|') + lines[lines.length - 1].p2.join('|') : '');
+    if (st._loopSig !== sig) {
+      st._loopSig = sig;
+      var oldFaces = st.loopFaces || [];
+      var freshFaces = findLoopFaces(lines);
+      // 保留已涂颜色：新环与旧环顶点序列完全一致时继承旧颜色（连线增删后不丢失已涂色）
+      freshFaces.forEach(function (fc) {
+        var k = fc.pts.map(function (p) { return p[0].toFixed(5) + ',' + p[1].toFixed(5) + ',' + p[2].toFixed(5); }).join(';');
+        for (var i = 0; i < oldFaces.length; i++) {
+          if (!oldFaces[i].color) continue;
+          var ok = oldFaces[i].pts.map(function (p) { return p[0].toFixed(5) + ',' + p[1].toFixed(5) + ',' + p[2].toFixed(5); }).join(';');
+          if (ok === k) { fc.color = oldFaces[i].color; break; }
+        }
+      });
+      st.loopFaces = freshFaces;
+    }
   }
 
-  /** 屏幕拾取点：返回距离鼠标最近的顶点或连线交点 {idx, pt, kind}（kind: 'vertex'|'inter'），超过阈值返回 null */
+  /** 检测由选点连线构成的闭合面（内部面）：3~4 条连线端点共享成闭合环。
+      返回 [{pts: [p0,p1,...], color: null}]——color 由面着色模式填充。
+      算法：连线端点建邻接图，DFS 枚举长度为 3/4 的简单环；
+      三角形需三点不共线，四边形需四点共面（保证是"面"而不是空间扭环）。 */
+  function findLoopFaces(segLines) {
+    var out = [];
+    var n = segLines.length;
+    if (n < 3) return out;
+    // 端点坐标 → 索引（去重：同一顶点多次使用）
+    var pts = [], idx = {}, edges = [];
+    function id(p) {
+      var k = p[0].toFixed(5) + ',' + p[1].toFixed(5) + ',' + p[2].toFixed(5);
+      if (!(k in idx)) { idx[k] = pts.length; pts.push(p); }
+      return idx[k];
+    }
+    segLines.forEach(function (ln) { edges.push([id(ln.p1), id(ln.p2)]); });
+    var m = pts.length, adj = [];
+    for (var i = 0; i < m; i++) adj.push([]);
+    edges.forEach(function (e) { adj[e[0]].push(e[1]); adj[e[1]].push(e[0]); });
+    // 环去重：规范化（旋转 + 反转取最小字典序）
+    var seen = {};
+    function normKey(ring) {
+      var arr = ring.slice(0, -1), best = null;
+      for (var rev = 0; rev < 2; rev++) {
+        var a = rev ? arr.slice().reverse() : arr;
+        for (var r = 0; r < a.length; r++) {
+          var cand = a.slice(r).concat(a.slice(0, r));
+          var s = cand.join(',');
+          if (best === null || s < best) best = s;
+        }
+      }
+      return best;
+    }
+    // DFS：从 start 出发走 3~4 条边回到 start（允许最后一步回到起点，其余顶点不重复）
+    function dfs(start, cur, len, path) {
+      adj[cur].forEach(function (nb) {
+        if (nb === start) {
+          // 尝试闭合：path[0]=start，共 len+1 条边（3 或 4）→ 形成一个环
+          var l2 = len + 1;
+          if (l2 < 3 || l2 > 4) return;
+          var k = normKey(path.concat([start]));
+          if (seen[k]) return;
+          seen[k] = true;
+          var ringPts = path.concat([start]).map(function (vi) { return pts[vi]; });
+          if (ringPts.length === 4) {
+            if (collinear3(ringPts[0], ringPts[1], ringPts[2])) return;   // 退化三角形（3 点共线）
+            if (!coplanar4(ringPts[0], ringPts[1], ringPts[2], ringPts[3])) return;   // 四边形不共面
+          } else if (collinear3(ringPts[0], ringPts[1], ringPts[2])) {
+            return;   // 三角形三点共线（退化）
+          }
+          out.push({ pts: ringPts, color: null });
+          return;
+        }
+        if (path.indexOf(nb) >= 0) return;   // 其余顶点不重复访问
+        path.push(nb);
+        dfs(start, nb, len + 1, path);
+        path.pop();
+      });
+    }
+    for (var s = 0; s < m; s++) dfs(s, s, 0, [s]);
+    return out;
+  }
+
+  /** 屏幕拾取"内部面"（连线闭合环）：返回点击位置所在的、最靠前的面 {face, z}，否则 null */
+  function pickLoopFaceAt(e) {
+    var st = states.solid;
+    var faces = st.loopFaces || [];
+    if (!faces.length) return null;
+    var rect = canvas.getBoundingClientRect();
+    var sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+    var best = null, bestZ = -1e9, bestArea = 1e18;
+    faces.forEach(function (fc) {
+      // 环顶点投影 → 屏幕坐标，再做 2D 点在多边形内判断
+      var scr = fc.pts.map(function (p) {
+        var pr = rotatePt(p, st.ry, st.rx);
+        return { x: H.X(pr.x), y: H.Y(pr.y), z: pr.z };
+      });
+      if (!inPoly2D(scr, sx, sy)) return;
+      var zsum = 0;
+      scr.forEach(function (p) { zsum += p.z; });
+      var z = zsum / scr.length;
+      // 同一深度（同面）取面积最小的环 = 最内层的面（避免外层环挡住内层）
+      var area = 0;
+      for (var i = 0; i < scr.length; i++) {
+        var a = scr[i], b = scr[(i + 1) % scr.length];
+        area += a.x * b.y - b.x * a.y;
+      }
+      area = Math.abs(area) / 2;
+      if (z > bestZ + 1e-9 || (Math.abs(z - bestZ) <= 1e-9 && area < bestArea)) {
+        bestZ = z; bestArea = area; best = { face: fc, z: z };
+      }
+    });
+    return best;
+  }
+
+  /** 屏幕拾取点：返回距离鼠标最近的顶点或连线交点 {idx, pt, kind}（kind: 'vertex'|'inter'），超过阈值返回 null。
+      投影重合的多个顶点（如正对观察者的面与背面的对称顶点）优先选 z 较大的（朝向观察者的面）。 */
   function pickVertexAt(e) {
     var st = states.solid;
     var verts = shapeData(st.shape).verts || [];
@@ -3049,18 +3278,23 @@
     var rect = canvas.getBoundingClientRect();
     var sx = (e.clientX - rect.left) * (canvas.width / rect.width);
     var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
-    var best = null, bestD = 1e9;
+    var best = null, bestD = 1e9, bestZ = -1e9;
     verts.forEach(function (v, i) {
       var pr = rotatePt(v, st.ry, st.rx);
       var px = H.X(pr.x), py = H.Y(pr.y);
       var d = Math.hypot(px - sx, py - sy);
-      if (d < 24 && d < bestD) { bestD = d; best = { idx: i, pt: v, kind: 'vertex' }; }   // 24px 触摸友好阈值
+      // 同距离时 z 大的顶点优先（前面 > 后面）
+      if (d < 24 && (d < bestD - 1e-9 || (Math.abs(d - bestD) < 1e-9 && pr.z > bestZ))) {
+        bestD = d; bestZ = pr.z; best = { idx: i, pt: v, kind: 'vertex' };
+      }
     });
     inters.forEach(function (p, i) {
       var pr = rotatePt(p, st.ry, st.rx);
       var px = H.X(pr.x), py = H.Y(pr.y);
       var d = Math.hypot(px - sx, py - sy);
-      if (d < 24 && d < bestD) { bestD = d; best = { idx: i, pt: p, kind: 'inter' }; }
+      if (d < 24 && (d < bestD - 1e-9 || (Math.abs(d - bestD) < 1e-9 && pr.z > bestZ))) {
+        bestD = d; bestZ = pr.z; best = { idx: i, pt: p, kind: 'inter' };
+      }
     });
     return best;
   }
@@ -3141,8 +3375,17 @@
     var total = 0;
     st.penStrokes.forEach(function (s) { total += s.pts ? s.pts.length : 0; });
     if (total >= 3000) st.penStrokes.shift();
-    seg.pts.push(p);
+    // Shift 直线：按住 Shift 拖动时，笔迹段始终只保留「起点 → 当前点」两个点（实时直线预览），
+    // 松手后即是一条两点直线；不按 Shift 时正常记录曲线采样点。
+    if (shiftDown && seg.pts.length) {
+      seg.pts = [seg.pts[0], p];
+    } else {
+      seg.pts.push(p);
+    }
   }
+  // Shift 键状态跟踪：画笔模式下按住 Shift 拖动画直线
+  document.addEventListener('keydown', function (e) { if (e.key === 'Shift') shiftDown = true; });
+  document.addEventListener('keyup', function (e) { if (e.key === 'Shift') shiftDown = false; });
   canvas.addEventListener('pointerdown', function (e) {
     if (currentId === 'solid' && S().seg) {
       // 选点连线模式：点击顶点或连线交点选点，两次点击之间连线
@@ -3177,6 +3420,33 @@
       erasing = true;
       canvas.setPointerCapture(e.pointerId);
       erasePenAt(e);
+      draw();
+      return;
+    }
+    if (currentId === 'solid' && S().paintFace) {
+      // 面着色模式：优先给"由选点连线围成的内部面"（闭合环）涂色，其次给几何体外表面涂色
+      var pst = states.solid;
+      var inner = pickLoopFaceAt(e);
+      if (inner) {
+        inner.face.color = pst.faceColor || FACE_COLORS[0];
+        var ci = FACE_COLORS.indexOf(inner.face.color);
+        pst.lastFaceInfo = '内部面·' + (ci >= 0 ? FACE_COLOR_NAMES[ci] : '所选色');
+        noteEl.textContent = '已为连线围成的内部面涂上' + (ci >= 0 ? FACE_COLOR_NAMES[ci] : '所选') + '色（可继续点击其他面）';
+        draw();
+        return;
+      }
+      var pfidx = pickFaceAt(e);
+      if (pfidx >= 0) {
+        pst.penFace = pfidx;
+        if (!pst.faceColors) pst.faceColors = {};
+        pst.faceColors[pfidx] = pst.faceColor || FACE_COLORS[0];
+        var ci2 = FACE_COLORS.indexOf(pst.faceColors[pfidx]);
+        pst.lastFaceInfo = faceNameOf(pst) + '·' + (ci2 >= 0 ? FACE_COLOR_NAMES[ci2] : '所选色');   // 供 canvasNote 显示最近涂色
+        noteEl.textContent = '已为「' + faceNameOf(pst) + '」涂上' + (ci2 >= 0 ? FACE_COLOR_NAMES[ci2] : '所选') + '色（可继续点击其他面）';
+      } else {
+        noteEl.textContent = '未点中几何体的面或连线围成的面，请点击后再涂色';
+        return;   // 无状态变化：不重绘，保留提示
+      }
       draw();
       return;
     }
