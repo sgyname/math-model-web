@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -759,11 +759,30 @@
     return { x: x1, y: y2, z: z2 };
   }
 
+  /** 各形状的几何中心（左下角建系的形状中心不在原点；其余形状中心在原点）。
+      左下角建系：长方体 2×1.4×1.4 → 中心 (1,0.7,0.7)；正方体 1.2³ → (0.6,0.6,0.6)；
+      正四面体（棱长 1.7，底面在 y=0）→ 质心 (0.85, h/4, r/3)。 */
+  function shapeCenterOf(shape) {
+    if (shape === 'cuboid') return [1, 0.7, 0.7];
+    if (shape === 'cube') return [0.6, 0.6, 0.6];
+    if (shape === 'tetra') return [1.7 / 2, 1.7 * Math.sqrt(2 / 3) / 4, 1.7 / Math.sqrt(3) / 3];
+    return [0, 0, 0];
+  }
+
+  /** 绕几何体自身中心旋转（左下角建系形状用）：先平移到原点旋转，再平移回中心位置。
+      保证旋转滑块作用在几何体中心，几何体不绕原点公转。 */
+  function pr(v, st) {
+    var c = shapeCenterOf(st.shape);
+    var r = rotatePt([v[0] - c[0], v[1] - c[1], v[2] - c[2]], st.ry, st.rx);
+    return { x: r.x + c[0], y: r.y + c[1], z: r.z + c[2] };
+  }
+
   /** 多面体各面的教学名称（与 shapeData 的 faces 顺序一一对应；
       注意观察者在 +z 方向，z 最大的面朝向观察者，即「前面」） */
   var FACE_NAMES = {
     cuboid: ['后面', '前面', '左面', '右面', '顶面', '底面'],
     cube: ['后面', '前面', '左面', '右面', '顶面', '底面'],
+    tetra: ['底面', '侧面 1', '侧面 2', '侧面 3'],
     triPrism: ['下底面', '上底面', '侧面 1', '侧面 2', '侧面 3'],
     pyramidFrustum: ['下底面', '上底面', '后面', '前面', '右面', '左面']
   };
@@ -817,9 +836,9 @@
     data.faces.forEach(function (face, i) {
       var avgZ = 0;
       var pts2d = face.map(function (v) {
-        var pr = rotatePt(v, st.ry, st.rx);
-        avgZ += pr.z;
-        return { x: H.X(pr.x), y: H.Y(pr.y) };
+        var pr2 = pr(v, st);   // 绕几何体中心旋转（左下角建系形状）
+        avgZ += pr2.z;
+        return { x: H.X(pr2.x), y: H.Y(pr2.y) };
       });
       avgZ /= pts2d.length;
       if (inPoly2D(pts2d, sx, sy) && avgZ > bestZ) {   // 命中且最靠前（z 最大）
@@ -1366,10 +1385,10 @@
       var a = shape === 'cube' ? 1.2 : 2;      // 正方体棱长 1.2，长方体 2×1.4×1.4
       var b = shape === 'cube' ? 1.2 : 1.4;
       var c = shape === 'cube' ? 1.2 : 1.4;
-      var hx = a / 2, hy = b / 2, hz = c / 2;
+      // 左下角建系：原点在（后面·底面·左面）的公共顶点，坐标轴沿三条棱，顶点坐标非负
       var v = [
-        [-hx, -hy, -hz], [hx, -hy, -hz], [hx, hy, -hz], [-hx, hy, -hz],
-        [-hx, -hy, hz], [hx, -hy, hz], [hx, hy, hz], [-hx, hy, hz]
+        [0, 0, 0], [a, 0, 0], [a, b, 0], [0, b, 0],
+        [0, 0, c], [a, 0, c], [a, b, c], [0, b, c]
       ];
       var verts = v;   // 顶点（供选点连线拾取）
       var ei = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
@@ -1416,6 +1435,28 @@
         }
         for (i = 0; i < N; i++) edges.push([ring2[i], ring2[(i + 1) % N]]);
       }
+    } else if (shape === 'tetra') {
+      // 正四面体（正放 + 左下角建系）：底面为正三角形放在 xz 平面（y=0），一个顶点在原点，
+      // 顶点在底面重心正上方（+y）；棱长 a≈1.70
+      var a4 = 1.7, h4 = a4 * Math.sqrt(2 / 3);   // 正四面体高 h = a√(2/3)
+      var r4 = a4 / Math.sqrt(3);                 // 底面外接圆半径
+      var T0 = [0, 0, 0], T1 = [a4, 0, 0], T2 = [a4 / 2, 0, r4 * Math.sqrt(3)];
+      var T3 = [a4 / 2, h4, r4 / 3];              // 顶点（底面重心正上方）
+      var vt = [T0, T1, T2, T3];
+      var verts = vt;   // 顶点（供选点连线拾取）
+      [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]].forEach(function (e) { edges.push([vt[e[0]], vt[e[1]]]); });
+      // 四个面：自动修正外法向（法向指向"缺的顶点"方向），供背面剔除与半透明填充
+      [[0, 1, 2], [0, 2, 3], [0, 3, 1], [1, 2, 3]].forEach(function (fi) {
+        var A = vt[fi[0]], B = vt[fi[1]], C = vt[fi[2]];
+        var D = null;
+        for (var q = 0; q < 4; q++) if (fi.indexOf(q) < 0) D = vt[q];
+        var abx = B[0] - A[0], aby = B[1] - A[1], abz = B[2] - A[2];
+        var acx = C[0] - A[0], acy = C[1] - A[1], acz = C[2] - A[2];
+        var nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx;
+        var fcx = (A[0] + B[0] + C[0]) / 3, fcy = (A[1] + B[1] + C[1]) / 3, fcz = (A[2] + B[2] + C[2]) / 3;
+        var dot = nx * (D[0] - fcx) + ny * (D[1] - fcy) + nz * (D[2] - fcz);
+        faces.push(dot < 0 ? [A, C, B] : [A, B, C]);   // 法向朝外
+      });
     } else if (shape === 'triPrism') {
       // 正三棱柱：底面正三角形边长 a=1.6，高 h=1.6（顶点按外法向顺序，供面填充）
       var a6 = 1.6, h6 = 1.6, rTri = a6 / Math.sqrt(3);
@@ -1500,6 +1541,12 @@
       volL: 'V=\\frac{\\sqrt{3}}{4}a^{2}h=\\frac{\\sqrt{3}\\times1.6^{2}\\times1.6}{4}\\approx1.77', volP: 'V = √3/4·a²h = √3×1.6²×1.6/4 ≈ 1.77',
       surfL: 'S=\\frac{\\sqrt{3}}{2}a^{2}+3ah=\\frac{\\sqrt{3}\\times1.6^{2}}{2}+3\\times1.6^{2}\\approx9.90', surfP: 'S = √3/2·a²+3ah = √3×1.6²/2+3×1.6² ≈ 9.90',
       note: '棱柱：侧棱互相平行，底面为三角形；V−E+F = 2'
+    },
+    tetra: {
+      name: '正四面体', V: 4, E: 6, F: 4, euler: 2,
+      volL: 'V=\\frac{\\sqrt{2}}{12}a^{3}=\\frac{\\sqrt{2}\\times(1.7)^{3}}{12}\\approx0.58', volP: 'V = √2/12·a³ = √2×1.7³/12 ≈ 0.58',
+      surfL: 'S=\\sqrt{3}a^{2}=\\sqrt{3}\\times1.7^{2}\\approx5.00', surfP: 'S = √3a² = √3×1.7² ≈ 5.00',
+      note: '正多面体：4 个全等的正三角形面，每个顶点连接 3 条棱；V−E+F = 2'
     },
     pyramidFrustum: {
       name: '正四棱台', V: 8, E: 12, F: 6, euler: 2,
@@ -2302,6 +2349,7 @@
             { v: 'cuboid', label: '长方体' },
             { v: 'cube', label: '正方体' },
             { v: 'triPrism', label: '三棱柱' },
+            { v: 'tetra', label: '正四面体' },
             { v: 'pyramidFrustum', label: '正四棱台' },
             { v: 'cylinder', label: '圆柱' },
             { v: 'cone', label: '圆锥' },
@@ -2385,7 +2433,7 @@
         var data = shapeData(S.shape);   // 获取当前几何体的棱与面
 
         // 旋转 + 正交投影（观察者在 +z 方向看向原点）
-        function P(v) { return rotatePt(v, S.ry, S.rx); }
+        function P(v) { return pr(v, S); }   // 绕几何体中心旋转（左下角建系形状）
         // 3D 坐标轴（浅灰；受「坐标系」开关控制）
         if (showCoord) {
           [[[0, 0, 0], [2.4, 0, 0]], [[0, 0, 0], [0, 2.4, 0]], [[0, 0, 0], [0, 0, 2.4]]].forEach(function (L) {
@@ -2452,8 +2500,8 @@
         // 部署点（自定义点，绿色实心圆点；可参与选点连线与围面上色）
         if (S.pts && S.pts.length) {
           S.pts.forEach(function (p) {
-            var pr = P(p);
-            ctx.beginPath(); ctx.arc(H.X(pr.x), H.Y(pr.y), 5, 0, Math.PI * 2);
+            var rp = P(p);
+            ctx.beginPath(); ctx.arc(H.X(rp.x), H.Y(rp.y), 5, 0, Math.PI * 2);
             ctx.fillStyle = '#059669'; ctx.fill();
             ctx.strokeStyle = THEME.dotStroke; ctx.lineWidth = 1.5; ctx.stroke();
           });
@@ -2462,7 +2510,7 @@
         // 区分「几何体边」与「内部结构线」：
         //   边（深色突出）= 多面体的棱、旋转体的顶/底圆环
         //   结构线（淡化）= 圆柱/圆锥/圆台的母线、球的经纬线
-        var isSolid = S.shape === 'cuboid' || S.shape === 'cube' || S.shape === 'triPrism' || S.shape === 'pyramidFrustum';
+        var isSolid = S.shape === 'cuboid' || S.shape === 'cube' || S.shape === 'triPrism' || S.shape === 'tetra' || S.shape === 'pyramidFrustum';
         var isRing = S.shape === 'cylinder' || S.shape === 'cone' || S.shape === 'frustum';
         var back = [], front = [];
         data.edges.forEach(function (L) {
@@ -2485,8 +2533,8 @@
             ctx.strokeStyle = seg.color || S.penColor || MARK_COLORS[0];   // 每段用自己画时的颜色
             ctx.beginPath();
             seg.pts.forEach(function (pt, idx) {
-              var pr = P(pt);
-              if (idx === 0) ctx.moveTo(H.X(pr.x), H.Y(pr.y)); else ctx.lineTo(H.X(pr.x), H.Y(pr.y));
+              var rp = P(pt);
+              if (idx === 0) ctx.moveTo(H.X(rp.x), H.Y(rp.y)); else ctx.lineTo(H.X(rp.x), H.Y(rp.y));
             });
             ctx.stroke();
           });
@@ -2516,16 +2564,16 @@
         // 连线交点（连线×连线、连线×棱产生的交点）：主题色圆点 + 描边，可点击继续连线
         if (S.interPts && S.interPts.length) {
           S.interPts.forEach(function (p) {
-            var pr = P(p);
-            ctx.beginPath(); ctx.arc(H.X(pr.x), H.Y(pr.y), 4.5, 0, Math.PI * 2);
+            var rp = P(p);
+            ctx.beginPath(); ctx.arc(H.X(rp.x), H.Y(rp.y), 4.5, 0, Math.PI * 2);
             ctx.fillStyle = THEME.label; ctx.fill();
             ctx.strokeStyle = THEME.dotStroke; ctx.lineWidth = 1.5; ctx.stroke();
           });
         }
         // 选点连线：当前选中的第一个点高亮圈（固定琥珀橙，表示"待连线的选中点"）
         if (S.segSel) {
-          var pr = P(S.segSel.pt);
-          ctx.beginPath(); ctx.arc(H.X(pr.x), H.Y(pr.y), 7, 0, Math.PI * 2);
+          var rp = P(S.segSel.pt);
+          ctx.beginPath(); ctx.arc(H.X(rp.x), H.Y(rp.y), 7, 0, Math.PI * 2);
           ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2.5; ctx.stroke();
         }
         // 复制的几何体副本（右键复制/粘贴）：独立旋转、横向排开，浅灰线框 + 半透明面
@@ -2533,8 +2581,10 @@
           S.instances.forEach(function (inst) {
             var idata = shapeData(inst.shape);
             function PI(v) {
-              var r = rotatePt(v, inst.ry, inst.rx);
-              return { x: r.x + inst.dx, y: r.y + inst.dy, z: r.z + inst.dz };
+              // 绕副本自身中心旋转 + 平移排开
+              var c = shapeCenterOf(inst.shape);
+              var r = rotatePt([v[0] - c[0], v[1] - c[1], v[2] - c[2]], inst.ry, inst.rx);
+              return { x: r.x + c[0] + inst.dx, y: r.y + c[1] + inst.dy, z: r.z + c[2] + inst.dz };
             }
             // 面填充（朝向观察者的面）
             idata.faces.forEach(function (f) {
@@ -3439,8 +3489,8 @@
     faces.forEach(function (fc) {
       // 环顶点投影 → 屏幕坐标，再做 2D 点在多边形内判断
       var scr = fc.pts.map(function (p) {
-        var pr = rotatePt(p, st.ry, st.rx);
-        return { x: H.X(pr.x), y: H.Y(pr.y), z: pr.z };
+        var pr2 = pr(p, st);   // 绕几何体中心旋转
+        return { x: H.X(pr2.x), y: H.Y(pr2.y), z: pr2.z };
       });
       if (!inPoly2D(scr, sx, sy)) return;
       var zsum = 0;
@@ -3472,7 +3522,7 @@
     (st.segLines || []).forEach(function (ln) { segs.push([ln.p1, ln.p2]); });              // 选点连线
     var best = null, bestD = 1e9;
     segs.forEach(function (seg) {
-      var p1 = rotatePt(seg[0], st.ry, st.rx), p2 = rotatePt(seg[1], st.ry, st.rx);
+      var p1 = pr(seg[0], st), p2 = pr(seg[1], st);   // 绕几何体中心旋转
       var x1 = H.X(p1.x), y1 = H.Y(p1.y), x2 = H.X(p2.x), y2 = H.Y(p2.y);
       var abx = x2 - x1, aby = y2 - y1;
       var len2 = abx * abx + aby * aby;
@@ -3506,8 +3556,8 @@
     var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
     var best = null, bestD = 1e9;
     st.pts.forEach(function (p, i) {
-      var pr = rotatePt(p, st.ry, st.rx);
-      var d = Math.hypot(H.X(pr.x) - sx, H.Y(pr.y) - sy);
+      var pr2 = pr(p, st);
+      var d = Math.hypot(H.X(pr2.x) - sx, H.Y(pr2.y) - sy);
       if (d < 24 && d < bestD) { bestD = d; best = i; }
     });
     return best;
@@ -3524,28 +3574,28 @@
     var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
     var best = null, bestD = 1e9, bestZ = -1e9;
     verts.forEach(function (v, i) {
-      var pr = rotatePt(v, st.ry, st.rx);
-      var px = H.X(pr.x), py = H.Y(pr.y);
+      var pr2 = pr(v, st);
+      var px = H.X(pr2.x), py = H.Y(pr2.y);
       var d = Math.hypot(px - sx, py - sy);
       // 同距离时 z 大的顶点优先（前面 > 后面）
-      if (d < 24 && (d < bestD - 1e-9 || (Math.abs(d - bestD) < 1e-9 && pr.z > bestZ))) {
-        bestD = d; bestZ = pr.z; best = { idx: i, pt: v, kind: 'vertex' };
+      if (d < 24 && (d < bestD - 1e-9 || (Math.abs(d - bestD) < 1e-9 && pr2.z > bestZ))) {
+        bestD = d; bestZ = pr2.z; best = { idx: i, pt: v, kind: 'vertex' };
       }
     });
     (st.pts || []).forEach(function (p, i) {
-      var pr = rotatePt(p, st.ry, st.rx);
-      var px = H.X(pr.x), py = H.Y(pr.y);
+      var pr2 = pr(p, st);
+      var px = H.X(pr2.x), py = H.Y(pr2.y);
       var d = Math.hypot(px - sx, py - sy);
-      if (d < 24 && (d < bestD - 1e-9 || (Math.abs(d - bestD) < 1e-9 && pr.z > bestZ))) {
-        bestD = d; bestZ = pr.z; best = { idx: i, pt: p, kind: 'pt' };
+      if (d < 24 && (d < bestD - 1e-9 || (Math.abs(d - bestD) < 1e-9 && pr2.z > bestZ))) {
+        bestD = d; bestZ = pr2.z; best = { idx: i, pt: p, kind: 'pt' };
       }
     });
     inters.forEach(function (p, i) {
-      var pr = rotatePt(p, st.ry, st.rx);
-      var px = H.X(pr.x), py = H.Y(pr.y);
+      var pr2 = pr(p, st);
+      var px = H.X(pr2.x), py = H.Y(pr2.y);
       var d = Math.hypot(px - sx, py - sy);
-      if (d < 24 && (d < bestD - 1e-9 || (Math.abs(d - bestD) < 1e-9 && pr.z > bestZ))) {
-        bestD = d; bestZ = pr.z; best = { idx: i, pt: p, kind: 'inter' };
+      if (d < 24 && (d < bestD - 1e-9 || (Math.abs(d - bestD) < 1e-9 && pr2.z > bestZ))) {
+        bestD = d; bestZ = pr2.z; best = { idx: i, pt: p, kind: 'inter' };
       }
     });
     return best;
@@ -3563,8 +3613,8 @@
     st.penStrokes.forEach(function (seg) {
       var cur = [];
       seg.pts.forEach(function (pt) {
-        var pr = rotatePt(pt, st.ry, st.rx);
-        var px = H.X(pr.x), py = H.Y(pr.y);
+        var pr2 = pr(pt, st);
+        var px = H.X(pr2.x), py = H.Y(pr2.y);
         if (Math.hypot(px - sx, py - sy) <= TH) {
           if (cur.length >= 2) newStrokes.push({ color: seg.color, pts: cur });   // 收尾成段
           cur = [];
@@ -3576,16 +3626,18 @@
     });
     st.penStrokes = newStrokes;
   }
-  /** 屏幕坐标 → 模型空间 3D 点（画笔与部署点共用）。
+  /** 屏幕坐标 → 模型空间 3D 点（画笔与部署点共用；支持左下角建系形状的绕中心旋转）。
       面内作图模式（face）：约束在当前拾取面（penFace）上并做面内裁剪，超出面范围返回 null；
       空间内作图模式（free）：z=0，屏幕深度 0 对应的模型空间点，可放在任意位置。
-      原理：p(z) = R⁻¹(wx, wy, z)（R 先绕 Y(b) 再绕 X(a)），代入面方程 n·p = d 解 z。 */
+      原理（中心 c）：p = c + u，u(z′) = R⁻¹(wx−cx, wy−cy, z′)，代入面方程 n·p = d 解 z′。 */
   function screenToModel3D(e, st) {
     var rect = canvas.getBoundingClientRect();
     var sx = (e.clientX - rect.left) * (canvas.width / rect.width);
     var sy = (e.clientY - rect.top) * (canvas.height / rect.height);
     var V = H.V;
     var wx = (sx - V.ox) / V.scale, wy = (V.oy - sy) / V.scale;   // 屏幕 → 世界坐标
+    var c = shapeCenterOf(st.shape);
+    var wxx = wx - c[0], wyy = wy - c[1];   // 相对几何体中心
     var b = st.ry * Math.PI / 180, a = st.rx * Math.PI / 180;
     var cb = Math.cos(b), sb = Math.sin(b), ca = Math.cos(a), sa = Math.sin(a);
     var z = 0;
@@ -3600,21 +3652,21 @@
         if (nl > 1e-12) {
           nx /= nl; ny /= nl; nz /= nl;
           var d = nx * f0[0] + ny * f0[1] + nz * f0[2];
-          var A = wx * cb + wy * sa * sb, B = ca * sb;
-          var C = wy * ca, D = sa;
-          var E = wx * sb - wy * sa * cb, F = ca * cb;
+          var A = wxx * cb + wyy * sa * sb, B = ca * sb;
+          var C = wyy * ca, D = sa;
+          var E = wxx * sb - wyy * sa * cb, F = ca * cb;
           var den = -nx * B + ny * D + nz * F;
-          z = Math.abs(den) > 0.05 ? (d - nx * A - ny * C - nz * E) / den : 0;
-          var pFace = [A - z * B, C + z * D, E + z * F];
+          z = Math.abs(den) > 0.05 ? (d - nx * c[0] - ny * c[1] - nz * c[2] - nx * A - ny * C - nz * E) / den : 0;
+          var pFace = [A - z * B + c[0], C + z * D + c[1], E + z * F + c[2]];
           // 面内裁剪：超出面多边形范围的点不记录
           if (Math.abs(den) > 0.05 && !faceContains(face, pFace, [nx, ny, nz])) return null;
         }
       }
     }
     return [
-      wx * cb + wy * sa * sb - z * ca * sb,
-      wy * ca + z * sa,
-      wx * sb - wy * sa * cb + z * ca * cb
+      wxx * cb + wyy * sa * sb - z * ca * sb + c[0],
+      wyy * ca + z * sa + c[1],
+      wxx * sb - wyy * sa * cb + z * ca * cb + c[2]
     ];
   }
 
@@ -4076,6 +4128,7 @@
 </script>
 </body>
 </html>
+
 
 
 
