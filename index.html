@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -383,6 +383,34 @@
   }
   .ctx-item:hover { background: var(--accent-soft); color: var(--accent); }
 
+  /* 点命名浮层（双击点弹出） */
+  #nameModal {
+    position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%);
+    z-index: 9997;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 10px;
+    min-width: 280px;
+  }
+  #nameModal.ctx-hidden { display: none; }
+  .nm-title { font-size: 18px; font-weight: bold; color: var(--accent); }
+  #nameInput {
+    font-size: 18px; padding: 8px 10px;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: var(--surface); color: var(--text);
+  }
+  #nameInput:focus { outline: none; border-color: var(--accent); }
+  .nm-btns { display: flex; gap: 10px; justify-content: flex-end; }
+  .nm-btns button {
+    font-size: 16px; padding: 6px 16px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border-strong);
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .nm-btns button:hover { background: var(--surface-2); }
+
   /* ============================================================
      手机/小平板适配（媒体查询，不影响电脑端布局）
      - 竖屏：画布在上、面板在下，整页上下滚动（控件不挤压、不堆叠）
@@ -465,6 +493,16 @@
   <div class="ctx-item" id="ctxCopy">复制几何体</div>
   <div class="ctx-item" id="ctxPaste">粘贴几何体</div>
   <div class="ctx-item" id="ctxClearInst">删除全部副本</div>
+</div>
+
+<!-- 点命名浮层（双击点弹出） -->
+<div id="nameModal" class="ctx-hidden">
+  <div class="nm-title">给点命名</div>
+  <input id="nameInput" type="text" placeholder="输入点的名字（留空清除）" spellcheck="false">
+  <div class="nm-btns">
+    <button id="nameOk">确定</button>
+    <button id="nameCancel">取消</button>
+  </div>
 </div>
 
 <!-- ================= 顶部标题 ================= -->
@@ -2389,7 +2427,7 @@
         { key: 'paintFace', label: '面着色模式（点击面涂色）', def: false },
         { key: 'placePt', label: '部署点模式（点击线段放置点）', def: false }
       ],
-      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, paintFace: false, placePt: false, penPlane: 'face', penFace: 0, penColor: MARK_COLORS[0], faceColor: FACE_COLORS[0], penStrokes: [], segLines: [], segSel: null, interPts: [], faceColors: {}, loopFaces: [], paintVerts: [], paintHistory: [], pts: [], instances: [], clipboard: null, undoStack: [] },
+      defaults: { shape: 'cuboid', ry: 30, rx: 15, pen: false, eraser: false, seg: false, paintFace: false, placePt: false, penPlane: 'face', penFace: 0, penColor: MARK_COLORS[0], faceColor: FACE_COLORS[0], penStrokes: [], segLines: [], segSel: null, interPts: [], faceColors: {}, loopFaces: [], paintVerts: [], paintHistory: [], pts: [], instances: [], clipboard: null, ptNames: {}, ptNameOrder: [], undoStack: [] },
       buttonAction: function (st, key) {
         if (key === 'undo') {
           // 返回上一步：撤销最近一次作图操作（笔迹段 / 连线 / 选中的第一个点）
@@ -2576,6 +2614,41 @@
           ctx.beginPath(); ctx.arc(H.X(rp.x), H.Y(rp.y), 7, 0, Math.PI * 2);
           ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2.5; ctx.stroke();
         }
+        // 点命名标签：顶点 / 部署点 / 中点 / 交点，双击命名的点显示名字（描边文字，随几何体旋转）
+        // 同名点区分：按"命名先后"排序——先命名的显示原名，后命名的名字右上角自动加上标序号（A、A²、A³…）
+        if (S.ptNames) {
+          var namedPts = [];
+          (shapeData(S.shape).verts || []).forEach(function (v) { namedPts.push(v); });
+          (S.pts || []).forEach(function (p) { namedPts.push(p); });
+          (S.interPts || []).forEach(function (p) { namedPts.push(p); });
+          // 按命名顺序统计每个名字的序号（先命名 = 序号 1 = 原名）
+          var nameCount = {}, nameSeq = {};
+          (S.ptNameOrder || []).forEach(function (k) {
+            var nm = S.ptNames[k];
+            if (!nm) return;
+            nameCount[nm] = (nameCount[nm] || 0) + 1;
+            nameSeq[k] = nameCount[nm];
+          });
+          namedPts.forEach(function (p) {
+            var k = ptKey3(p);
+            var nm = S.ptNames[k];
+            if (!nm) return;
+            var idx = nameSeq[k] || 1;
+            var label = nm;
+            if ((nameCount[nm] || 0) > 1 && idx > 1) {
+              var SUPS = '²³⁴⁵⁶⁷⁸⁹';
+              label = nm + (SUPS[idx - 2] || ('(' + idx + ')'));
+            }
+            var nr = P(p);
+            var npx = H.X(nr.x), npy = H.Y(nr.y);
+            ctx.font = 'bold 15px "Microsoft YaHei", sans-serif';
+            ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 3; ctx.strokeStyle = THEME.dotStroke;
+            ctx.strokeText(label, npx + 12, npy - 12);
+            ctx.fillStyle = THEME.label;
+            ctx.fillText(label, npx + 12, npy - 12);
+          });
+        }
         // 复制的几何体副本（右键复制/粘贴）：独立旋转、横向排开，浅灰线框 + 半透明面
         if (S.instances && S.instances.length) {
           S.instances.forEach(function (inst) {
@@ -2662,7 +2735,7 @@
         }
         return '用右上角「左右/上下旋转」滑块调整视角；勾选画笔/橡皮擦/选点连线/面着色模式可在空间内作图';
       },
-      hint: '用图像右上角的「左右/上下旋转」滑块从任意角度观察；开启画笔/橡皮擦可在空间内作图，画笔下按住 Shift 画直线；部署点模式只能把点放在线段（棱或连线）上；面着色模式依次点击同一平面上的顶点围成图形即可上色；右键画布可复制/粘贴几何体（一个坐标系多个几何体）；「返回上一步」可撤销最近一次操作。'
+      hint: '用图像右上角的「左右/上下旋转」滑块从任意角度观察；双击任意点（顶点/部署点/中点/交点）可命名；开启画笔/橡皮擦可在空间内作图，画笔下按住 Shift 画直线；部署点模式只能把点放在线段上；面着色模式依次点击同一平面上的顶点围成图形即可上色；右键画布可复制/粘贴几何体；「返回上一步」可撤销最近一次操作。'
     },
 
     /* ---------- 数列与代数 ---------- */
@@ -3247,6 +3320,7 @@
   /* ---- 立体几何空间画笔/橡皮擦/选点连线：开启后优先处理，不触发平移 ---- */
   var penDrawing = false, erasing = false, penLastScreen = null;
   var shiftDown = false;   // Shift 键状态：画笔模式下按住 Shift 拖动 → 画直线
+  var lastClickT = 0, lastClickX = -1, lastClickY = -1;   // 双击检测（点命名用）
 
   /** 3D 线段求交：线段 a1a2 与 b1b2 有真实交点时返回交点坐标 [x,y,z]，否则返回 null。
       原理：两线参数化 a1+t·d1、b1+s·d2，交点满足 a1+t·d1=b1+s·d2；
@@ -3764,10 +3838,59 @@
     hideCtxMenu();
     draw();
   });
+  // 点命名浮层：双击点（顶点/部署点/中点/交点）弹出命名框
+  var nameModal = document.getElementById('nameModal');
+  var nameInput = document.getElementById('nameInput');
+  var namingPt = null;   // 正在命名的点（3D 坐标）
+  function ptKey3(p) { return p[0].toFixed(5) + ',' + p[1].toFixed(5) + ',' + p[2].toFixed(5); }
+  function openNameModal(pt) {
+    namingPt = pt;
+    var st = states.solid;
+    st.ptNames = st.ptNames || {};
+    nameInput.value = st.ptNames[ptKey3(pt)] || '';
+    nameModal.classList.remove('ctx-hidden');
+    if (nameInput.focus) nameInput.focus();
+    if (nameInput.select) nameInput.select();
+  }
+  document.getElementById('nameOk').addEventListener('click', function () {
+    if (namingPt) {
+      var st = states.solid;
+      st.ptNames = st.ptNames || {};
+      st.ptNameOrder = st.ptNameOrder || [];
+      var k = ptKey3(namingPt);
+      var v = nameInput.value.trim();
+      if (v) {
+        if (!(k in st.ptNames)) st.ptNameOrder.push(k);   // 首次命名：记录命名先后顺序
+        st.ptNames[k] = v;                                 // 命名（坐标键）
+      } else {
+        delete st.ptNames[k];                              // 留空清除名字
+        st.ptNameOrder = st.ptNameOrder.filter(function (x) { return x !== k; });
+      }
+      st.ctxMsg = v ? '已为点命名为「' + v + '」' : '已清除该点名称';   // 反馈经 canvasNote 显示
+      noteEl.textContent = st.ctxMsg;
+    }
+    nameModal.classList.add('ctx-hidden');
+    namingPt = null;
+    draw();
+  });
+  document.getElementById('nameCancel').addEventListener('click', function () {
+    nameModal.classList.add('ctx-hidden');
+    namingPt = null;
+  });
+
   canvas.addEventListener('pointerdown', function (e) {
     if (currentId === 'solid') {
       states.solid.ctxMsg = '';   // 新画布操作清除右键菜单反馈
       states.solid.ptMsg = '';    // 清除部署点反馈
+    }
+    // 双击检测：非交互模式下 350ms 内同位置再次点击 → 给点命名（不触发模式操作）
+    var now = Date.now();
+    var isDbl = (now - lastClickT < 350) && Math.hypot(e.clientX - lastClickX, e.clientY - lastClickY) < 10;
+    lastClickT = now; lastClickX = e.clientX; lastClickY = e.clientY;
+    if (isDbl && currentId === 'solid' && !S().pen && !S().eraser && !S().seg && !S().paintFace && !S().placePt) {
+      var nvhit = pickVertexAt(e);
+      if (nvhit) { openNameModal(nvhit.pt); }
+      return;
     }
     if (currentId === 'solid' && S().seg) {
       // 选点连线模式：点击顶点或连线交点选点，两次点击之间连线
