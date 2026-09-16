@@ -416,6 +416,94 @@
   }
   .nm-btns button:hover { background: var(--surface-2); }
 
+  /* ========== 第七版块：智能助手聊天界面 ========== */
+  .chat-tools { display: flex; gap: 8px; }
+  .chat-mini { flex: 1; font-size: 14px; padding: 7px 0; margin: 0; }
+  .chat-msgs {
+    flex: 1; min-height: 220px;
+    display: flex; flex-direction: column; gap: 10px;
+    overflow-y: auto;
+    padding: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .chat-row { display: flex; }
+  .chat-me { justify-content: flex-end; }
+  .chat-bot { justify-content: flex-start; }
+  .chat-bubble {
+    max-width: 88%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 15px; line-height: 1.65;
+    white-space: pre-wrap; word-break: break-word;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .chat-me .chat-bubble { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chat-img { display: block; max-width: 100%; border-radius: 8px; margin-bottom: 6px; }
+  .chat-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chat-chip {
+    font-size: 13px; padding: 4px 10px; cursor: pointer;
+    color: var(--accent); background: var(--accent-soft);
+    border: 1px solid var(--border-strong); border-radius: 999px;
+    white-space: nowrap;
+  }
+  .chat-chip:hover { background: var(--surface-2); }
+  .chat-input-row { display: flex; align-items: center; gap: 8px; }
+  .chat-icon { width: 44px; flex: none; font-size: 18px; padding: 7px 0; margin: 0; }
+  .chat-input {
+    flex: 1; min-width: 0;
+    font-size: 15px; padding: 8px 10px;
+    border: 1px solid var(--border-strong); border-radius: 8px;
+    background: var(--surface); color: var(--text);
+  }
+  .chat-input:focus { outline: none; border-color: var(--accent); }
+  .chat-send { width: 76px; flex: none; margin: 0; }
+  .chat-cfg {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong); border-radius: 10px;
+  }
+  .chat-cfg-title { font-size: 13px; color: var(--accent); font-weight: bold; line-height: 1.5; }
+  .chat-cfg-label { font-size: 12px; color: var(--muted); }
+  .chat-cfg-input {
+    font-size: 14px; padding: 6px 8px;
+    border: 1px solid var(--border-strong); border-radius: 7px;
+    background: var(--surface); color: var(--text);
+    width: 100%;
+  }
+  .chat-cfg-input:focus { outline: none; border-color: var(--accent); }
+  .chat-cfg-btns { display: flex; gap: 8px; }
+
+  /* ========== 第七版块：图片绘制面板 ========== */
+  .img-preview {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 120px; max-height: 220px;
+    padding: 8px;
+    background: var(--surface-2);
+    border: 1px dashed var(--border-strong);
+    border-radius: 10px;
+    font-size: 13px; color: var(--muted);
+    overflow: hidden;
+  }
+  .img-preview img { max-width: 100%; max-height: 200px; border-radius: 6px; }
+  .img-params { display: flex; flex-direction: column; gap: 8px; }
+  .img-rowbar { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+  .img-rowbar input[type="range"] { flex: 1; min-width: 0; margin: 0; }
+  .img-val {
+    min-width: 34px; text-align: right; font-weight: bold; color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .img-rowbar select { flex: 1; min-width: 0; margin: 0; font-size: 14px; padding: 5px 7px; }
+  .img-chk {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; color: var(--text); cursor: pointer;
+  }
+  .img-chk input[type="checkbox"] { width: 20px; height: 20px; }
+  .img-tip { font-size: 12px; color: var(--muted); line-height: 1.6; }
   /* ============================================================
      手机/小平板适配（媒体查询，不影响电脑端布局）
      - 竖屏：画布在上、面板在下，整页上下滚动（控件不挤压、不堆叠）
@@ -1850,6 +1938,142 @@
   };
 
   /* ================================================================
+     ⑤+2 智能助手：自然语言 → 绘图计划（本地解析，离线可用）
+     ----------------------------------------------------------------
+     支持：「画 y=x^2」「画椭圆 x^2/9+y^2/4=1」「画个正方体」
+           「画 y=sin(2*x) 在 [-3,3]」「画 y=x^2 和 y=2*x」
+     解析结果 plan = {model, set:{参数}, reply:'回复文本'}
+     ================================================================ */
+
+  /** 几何体关键词 → 形状（正则、形状 id、中文名） */
+  var SOLID_WORDS = [
+    [/正四面体|四面体/, 'tetra', '正四面体'],
+    [/正方体|立方体/, 'cube', '正方体'],
+    [/长方体/, 'cuboid', '长方体'],
+    [/三棱柱|棱柱/, 'triPrism', '正三棱柱'],
+    [/四棱台|棱台/, 'pyramidFrustum', '正四棱台'],
+    [/圆柱/, 'cylinder', '圆柱'],
+    [/圆锥/, 'cone', '圆锥'],
+    [/圆台/, 'frustum', '圆台'],
+    [/球/, 'sphere', '球']
+  ];
+
+  /** 归一化数学表达式（全角→半角、去中文与空格） */
+  function normalizeMathExpr(s) {
+    return String(s || '')
+      .replace(/[（]/g, '(').replace(/[）]/g, ')')
+      .replace(/[×✕·]/g, '*').replace(/[÷]/g, '/')
+      .replace(/[－—–−]/g, '-').replace(/[＋]/g, '+')
+      .replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+      .replace(/[^\x00-\x7F]/g, '')
+      .replace(/\s+/g, '');
+  }
+
+  /** 截取字符串开头的连续数学表达式字符（遇到「在 [-3,3] 内」等说明文字即停止） */
+  function cutExpr(s) {
+    var out = '';
+    for (var i = 0; i < String(s || '').length; i++) {
+      var c = s[i];
+      if (/[0-9a-zA-Z+\-*/().^]/.test(c)) out += c; else break;
+    }
+    return out;
+  }
+
+  /** 从文本中提取 "y=..." 或 "f(x)=..." 里的表达式 */
+  function extractFnExpr(t) {
+    var m = /(?:y|f\s*\(\s*x\s*\))\s*=\s*([^;；,，。！？\n]+)/i.exec(t);
+    if (!m) return null;
+    var e = cutExpr(normalizeMathExpr(m[1]));
+    return e || null;
+  }
+
+  /** 提取坐标范围：返回半径 r（如 [-3,3] → 3），无则 null */
+  function extractRange(t) {
+    var m = /\[\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\]/.exec(t);
+    if (m) {
+      var r = Math.max(Math.abs(parseFloat(m[1])), Math.abs(parseFloat(m[2])));
+      if (r > 0 && r <= 12) return r;
+    }
+    m = /(?:从|在)\s*(-?\d+(?:\.\d+)?)\s*(?:到|至|~)\s*(-?\d+(?:\.\d+)?)/.exec(t);
+    if (m) {
+      var r2 = Math.max(Math.abs(parseFloat(m[1])), Math.abs(parseFloat(m[2])));
+      if (r2 > 0 && r2 <= 12) return r2;
+    }
+    return null;
+  }
+
+  /** 自然语言 → 绘图计划；无法识别为绘图指令时返回 null */
+  function parseDrawRequest(text) {
+    var t = String(text || '').trim();
+    if (!t) return null;
+    var r = extractRange(t);
+
+    // ① 3D 几何体
+    for (var i = 0; i < SOLID_WORDS.length; i++) {
+      if (SOLID_WORDS[i][0].test(t)) {
+        return {
+          model: 'solid', set: { shape: SOLID_WORDS[i][1] },
+          reply: '已绘制「' + SOLID_WORDS[i][2] + '」——右侧画布可用旋转滑块换角度，还可开启画笔、选点连线、面着色等作图工具。'
+        };
+      }
+    }
+    // ② 其他具名模型
+    if (/单位圆/.test(t)) return { model: 'unitcircle', set: {}, reply: '已绘制单位圆（三角函数线）——拖动参数观察 sinθ、cosθ、tanθ 的变化。' };
+    if (/正态分布|正态曲线|钟形/.test(t)) return { model: 'normal', set: {}, reply: '已绘制正态分布曲线——调整 μ、σ 观察曲线形状变化。' };
+    if (/基本不等式|均值不等式/.test(t)) return { model: 'ineq', set: {}, reply: '已绘制基本不等式模型——观察 a+b 与 2√(ab) 的几何关系。' };
+    if (/等差数列/.test(t)) return { model: 'arith', set: {}, reply: '已绘制等差数列（点列与通项）——可调首项与公差。' };
+    if (/等比数列/.test(t)) return { model: 'geom', set: {}, reply: '已绘制等比数列——可调首项与公比。' };
+    if (/椭圆/.test(t) && !/=/.test(t)) return { model: 'ellipse', set: {}, reply: '已绘制椭圆——可调 a、b 观察离心率变化，勾选演示可看动点 P。' };
+    if (/双曲线/.test(t) && !/=/.test(t)) return { model: 'hyperbola', set: {}, reply: '已绘制双曲线——可调 a、b 与焦点演示。' };
+    if (/抛物线/.test(t) && !/=/.test(t)) return { model: 'parabola', set: {}, reply: '已绘制抛物线——可调焦准距 p。' };
+
+    // ③ 隐式方程（两侧都含 x/y）→ 圆锥曲线/自定义方程；左端仅有 y 或 f(x) 的属显式函数，跳过
+    var eqM = /([0-9a-zA-Z\^\+\-\*/\(\)\.]*[xy][0-9a-zA-Z\^\+\-\*/\(\)\.]*)\s*=\s*([0-9a-zA-Z\^\+\-\*/\(\)\.]+)/.exec(t);
+    if (eqM) {
+      var lhsN = normalizeMathExpr(eqM[1]);
+      var rhsN = normalizeMathExpr(eqM[2]);
+      var isExplicitForm = /^(y|f\(x\))$/i.test(lhsN) && !/y/i.test(rhsN);   // y=… / f(x)=… 属显式函数
+      if (!isExplicitForm) {
+        var eq = normalizeMathExpr(eqM[0]);
+        if (eq.length <= 60) {
+          var setImp = { expr: eq };
+          if (r) setImp.r = r;
+          return {
+            model: 'conicCustom', set: setImp,
+            reply: '已绘制方程 ' + eq + '（等值线法自动绘制）——参数区可修改方程或调整视野。'
+          };
+        }
+      }
+    }
+    // ④ 显式函数（可多条）
+    var segs = t.split(/[；;]|和(?=\s*y)|以及|\n/).map(function (s) { return s.trim(); }).filter(Boolean);
+    var exprs = [];
+    segs.forEach(function (s) {
+      var e = extractFnExpr(s);
+      if (e && /[xX]/.test(e)) exprs.push(e);
+    });
+    if (!exprs.length) {
+      var one = extractFnExpr(t);
+      if (one && /[xX]/.test(one)) exprs.push(one);
+    }
+    if (exprs.length === 1) {
+      var setFn = { expr: exprs[0] };
+      if (r) setFn.r = r;
+      return {
+        model: 'fnCustom', set: setFn,
+        reply: '已绘制函数 y = ' + exprs[0] + '——画布可滚轮缩放、拖拽平移；参数区可改表达式与视野范围。'
+      };
+    }
+    if (exprs.length > 1) {
+      return {
+        model: 'multiFn', set: { expr: exprs.join('\n') },
+        reply: '已同屏绘制 ' + exprs.length + ' 个函数：' + exprs.join('、') + '（不同颜色区分，画布左上角有图例）。'
+      };
+    }
+    return null;
+  }
+
+  /* ================================================================
      ⑥ 数学模型注册表（★ 新增/修改模型就看这里 ★）
      ----------------------------------------------------------------
      每个模型是一个对象：
@@ -3263,6 +3487,108 @@
         setTable(rows);
       },
       hint: '在输入框键入任意函数（回车确认）即可生成图像；拖动 x₀ 观察切线斜率 f′(x₀) 的变化；点击「求导」查看导函数解析式，勾选「显示导函数曲线」可在同一坐标系对比 f(x) 与 f′(x)。'
+    },
+
+    /* ---------- 图片绘制（第七版块：导入图片 → 提取图中图像 → 重绘） ---------- */
+    {
+      id: 'picdraw', name: '图片绘制', cat: '图片绘制',
+      params: [],   // 参数区被「图片绘制」面板替代（buildPanel 特判）
+      defaults: {
+        img: '',           // 导入图片的 dataURL（仅在本机处理，不上传）
+        curves: [],        // 提取结果：[[{u,v},…], …]（归一化坐标 [-1,1]）
+        r: 6,              // 视野半径 ±r
+        invert: false,     // 反色（深底浅线的图片）
+        showImg: true,     // 是否在坐标系中显示图片底图
+        imgAlpha: 0.85,    // 底图透明度
+        imgScale: 1,       // 底图缩放（对齐坐标系用）
+        imgDX: 0, imgDY: 0,// 底图位置微调（世界坐标）
+        sensitivity: 50,   // 提取灵敏度 0~100（越高越容易判为线条，适合照片）
+        multi: false,      // 提取多条曲线
+        color: '#2563eb',  // 线条颜色
+        msg: ''            // 最近一次提取/操作提示
+      },
+      draw: function (S) {
+        var r = S.r || 6;
+        H.setViewRect(-r, r, -r, r); H.grid(); H.axes();
+        var curves = S.curves || [];
+        // ① 底图：把导入的图片按坐标系绘制到画布上（保证「导入即可见」；可调透明度/缩放/位置）
+        var imgShown = false;
+        if (S.img && S.showImg !== false && picImgObj && picImgObj.src === S.img && picImgObj.width) {
+          var iw = picImgObj.width, ih = picImgObj.height;
+          var sc = Math.min((2 * r) / iw, (2 * r) / ih) * (S.imgScale || 1);
+          var w = iw * sc, h = ih * sc;
+          var x0 = -w / 2 + (S.imgDX || 0), y1 = h / 2 + (S.imgDY || 0);
+          ctx.save();
+          ctx.globalAlpha = (S.imgAlpha === undefined ? 0.85 : S.imgAlpha);
+          ctx.drawImage(picImgObj, H.X(x0), H.Y(y1), w * H.V.scale, h * H.V.scale);
+          ctx.restore();
+          imgShown = true;
+        }
+        // ② 提取出的矢量曲线（叠加在底图之上）
+        if (!curves.length) {
+          if (!imgShown) {
+            H.text(0, 1.3, '图片绘制', { color: '#2563eb', size: 26, bold: true });
+            H.text(0, -0.1, '导入题目图片即可显示在坐标系中', { color: THEME.label, size: 18 });
+            H.text(0, -1.5, '再点「提取并绘制图像」可叠加矢量曲线（本地处理，图片不上传）', { color: THEME.tickText, size: 15 });
+          } else {
+            ctx.font = 'bold 14px "Microsoft YaHei", sans-serif';
+            ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+            ctx.fillStyle = THEME.tickText;
+            ctx.fillText('已显示图片底图 · 点「提取并绘制图像」可叠加矢量曲线', 12, 10);
+          }
+        }
+        curves.forEach(function (cv, i) {
+          var col = curves.length > 1 ? MARK_COLORS[i % MARK_COLORS.length] : (S.color || MARK_COLORS[0]);
+          ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.setLineDash([]);
+          ctx.beginPath();
+          cv.forEach(function (pt, k) {
+            var X = H.X(pt.u * r), Y = H.Y(pt.v * r);
+            if (k === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+          });
+          ctx.stroke();
+        });
+        // 左上角信息
+        if (curves.length) {
+          var pts = 0;
+          curves.forEach(function (c) { pts += c.length; });
+          ctx.font = 'bold 14px "Microsoft YaHei", sans-serif';
+          ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+          ctx.fillStyle = THEME.tickText;
+          ctx.fillText('已提取 ' + curves.length + ' 条曲线 · ' + pts + ' 个采样点 · 视野 ±' + fmt(r), 12, 10);
+        }
+      },
+      formulas: function (S) {
+        var curves = S.curves || [];
+        if (!curves.length) {
+          fEq.textContent = '导入图片后自动提取图中曲线并重绘';
+          fC.innerHTML = ''; fE.innerHTML = '';
+          fNote.textContent = '适用：题目中的函数图像、圆锥曲线、几何图形等；程序逐列扫描图片中的线条像素，按坐标系映射后重新绘制为矢量图形，可用于投影讲解与再编辑。';
+          setTable([
+            ['使用步骤', '导入图片 → 提取并绘制'],
+            ['可调项', '视野 ±r、反色、多条曲线、线条颜色'],
+            ['隐私', '图片仅在本机浏览器处理，不会上传']
+          ]);
+          return;
+        }
+        var pts = 0;
+        curves.forEach(function (c) { pts += c.length; });
+        setMath(fEq, '\\text{提取曲线：}' + curves.length + '\\text{ 条}', '提取曲线：' + curves.length + ' 条');
+        setMath(fC, '\\text{采样点：}' + pts + '\\text{ 个}', '采样点：' + pts + ' 个');
+        setMath(fE, '\\text{视野：}[-' + fmt(S.r) + ',' + fmt(S.r) + ']', '视野：[−' + fmt(S.r) + ', ' + fmt(S.r) + ']');
+        fNote.textContent = '提示：拖动「视野 ±r」可直接缩放已提取的曲线；若线条提取不理想，可勾选「反色」或勾选「提取多条曲线」后重新提取。';
+        setTable([
+          ['曲线数', String(curves.length)],
+          ['采样点数', String(pts)],
+          ['视野 ±r', fmt(S.r)],
+          ['线条颜色', curves.length > 1 ? '多色自动分配' : (S.color || MARK_COLORS[0])]
+        ]);
+      },
+      canvasNote: function (S) {
+        if (S.msg) return S.msg;
+        if ((S.curves || []).length) return '已提取图中曲线并重绘；可拖动「视野 ±r」缩放，或改颜色后重新提取';
+        return '导入题目图片 → 点「提取并绘制图像」，即可把图片中的图形重绘为矢量图像';
+      },
+      hint: '图片绘制：点「🖼 导入题目图片」选择图片（可拍照），程序自动逐列扫描图中线条像素，按坐标系重绘为矢量曲线；可调视野 ±r、反色（深底浅线）、多条曲线与线条颜色。全程本地处理，无需联网。'
     }
   ];
 
@@ -3316,9 +3642,495 @@
     });
   }
 
+  /* ================================================================
+     ⑧+ 图片绘制（第七版块）：导入图片 → 提取图中图像 → 重绘为矢量图像
+     ----------------------------------------------------------------
+     完全本地实现，无需联网、无需任何智能接口：
+     ① 图片绘制到离屏 canvas → 灰度化 → Otsu 自动阈值二值化
+     ② 逐列扫描前景（深色/浅色）像素，连续段取中点作为曲线采样点
+     ③ 按列间最近邻把采样点关联成多条轨迹，剔除过短噪声
+     ④ 归一化到 [-1,1] 坐标保存，绘制时按「视野 ±r」缩放（改 r 无需重新提取）
+     ================================================================ */
+
+  /** Otsu 自动阈值：按最大类间方差求灰度二值化阈值 */
+  function otsuThreshold(gray) {
+    var hist = new Array(256), i;
+    for (i = 0; i < 256; i++) hist[i] = 0;
+    for (i = 0; i < gray.length; i++) hist[gray[i]]++;
+    var total = gray.length, sum = 0;
+    for (i = 0; i < 256; i++) sum += i * hist[i];
+    var sumB = 0, wB = 0, maxVar = -1, th = 128;
+    for (i = 0; i < 256; i++) {
+      wB += hist[i];
+      if (!wB) continue;
+      var wF = total - wB;
+      if (!wF) break;
+      sumB += i * hist[i];
+      var mB = sumB / wB, mF = (sum - sumB) / wF;
+      var between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > maxVar) { maxVar = between; th = Math.round((mB + mF) / 2); }   // 取两类均值中点：纯黑/纯白二值图也能正确区分前景
+    }
+    return th;
+  }
+
+  /** 局部自适应阈值掩码：用积分图求窗口局部均值，逐像素与「局部均值 − 偏移」比较。
+      相比全局 Otsu，能抵抗照片的光照不均、阴影与渐变背景（真实照片可用）。
+      opt: { invert 前景取亮色（深底浅线）, offset 对比度阈值（越大越严格） } */
+  function adaptiveMask(gray, W, H, opt) {
+    opt = opt || {};
+    var invert = !!opt.invert;
+    var offset = (opt.offset === undefined) ? 10 : opt.offset;
+    // 积分图（前缀和）：I[y][x] = 左上角矩形灰度总和
+    var I = new Float64Array((W + 1) * (H + 1));
+    for (var y = 0; y < H; y++) {
+      var rowSum = 0;
+      for (var x = 0; x < W; x++) {
+        rowSum += gray[y * W + x];
+        I[(y + 1) * (W + 1) + (x + 1)] = I[y * (W + 1) + (x + 1)] + rowSum;
+      }
+    }
+    var r = Math.max(8, Math.round(Math.min(W, H) / 12));   // 局部窗口半径
+    var mask = new Uint8Array(W * H);
+    for (var yy = 0; yy < H; yy++) {
+      var y0 = yy - r < 0 ? 0 : yy - r, y1 = yy + r + 1 > H ? H : yy + r + 1;
+      for (var xx = 0; xx < W; xx++) {
+        var x0 = xx - r < 0 ? 0 : xx - r, x1 = xx + r + 1 > W ? W : xx + r + 1;
+        var area = (x1 - x0) * (y1 - y0);
+        var s = I[y1 * (W + 1) + x1] - I[y0 * (W + 1) + x1] - I[y1 * (W + 1) + x0] + I[y0 * (W + 1) + x0];
+        var mean = s / area;
+        var g = gray[yy * W + xx];
+        mask[yy * W + xx] = (invert ? (g > mean + offset) : (g < mean - offset)) ? 1 : 0;
+      }
+    }
+    return mask;
+  }
+
+  /** 像素数据 → 曲线点集（纯函数，便于测试）
+      返回 [[{u,v},…], …]：归一化坐标，u 向右、v 向上，范围 [-1,1]
+      opt: { invert 反色（深底浅线）, multi 多条曲线, sensitivity 0~100（越大越灵敏） } */
+  function pixelsToCurves(data, W, H, opt) {
+    opt = opt || {};
+    var invert = !!opt.invert, multi = !!opt.multi;
+    var sens = (opt.sensitivity === undefined) ? 50 : opt.sensitivity;
+    var gray = new Uint8Array(W * H), i;
+    for (i = 0; i < W * H; i++) {
+      gray[i] = (data[i * 4] * 0.299 + data[i * 4 + 1] * 0.587 + data[i * 4 + 2] * 0.114) | 0;
+    }
+    // 灵敏度 0~100 → 对比度阈值 24~2（越大越灵敏，越容易判为线条）
+    var offset = 24 - (sens / 100) * 22;
+    var mask = adaptiveMask(gray, W, H, { invert: invert, offset: offset });
+    // 形态学细扫：逐列前景连续段取中点；过多前景（整列都亮/暗）视为无效列
+    var colMids = [];
+    var maxSeg = Math.max(10, H * 0.14);
+    for (var x = 0; x < W; x++) {
+      var mids = [], a = -1, fgCount = 0;
+      for (var y = 0; y <= H; y++) {
+        var fg = (y < H) && mask[y * W + x] === 1;
+        if (fg) { fgCount++; if (a < 0) a = y; }
+        else if (a >= 0) { if (y - 1 - a <= maxSeg) mids.push((a + y - 1) / 2); a = -1; }
+      }
+      if (fgCount > H * 0.7) mids = [];   // 整列几乎全是前景（大面积阴影/边框）→ 丢弃该列
+      colMids.push(mids);
+    }
+    // 轨迹关联：允许跳列（虚线/断线）与较大跳变（陡峭曲线）
+    var tracks = [], prev = [], prevAge = [];
+    var maxJump = Math.max(12, H * 0.30);   // 放宽：陡峭或稀疏采样也能接上
+    var maxGap = 6;                          // 最多跨越 6 列无前景（补断线）
+    for (var x2 = 0; x2 < W; x2++) {
+      var mids2 = colMids[x2], used = [], nextPrev = [], nextAge = [];
+      for (var k = 0; k < mids2.length; k++) {
+        var my = mids2[k], best = -1, bestD = 1e9;
+        for (var t2 = 0; t2 < prev.length; t2++) {
+          if (used[t2]) continue;
+          if (prevAge[t2] > maxGap) continue;             // 轨迹已断太久
+          var tk = tracks[prev[t2]];
+          // 用最近两点估算方向，向前预测 1 列位置（减少交叉时错连）
+          var n = tk.length;
+          var ly = tk[n - 1].y;
+          var py = n >= 2 ? ly + (ly - tk[n - 2].y) : ly;
+          var d = Math.min(Math.abs(ly - my), Math.abs(py - my));
+          if (d < bestD) { bestD = d; best = t2; }
+        }
+        if (best >= 0 && bestD <= maxJump) {
+          used[best] = true;
+          tracks[prev[best]].push({ x: x2, y: my });
+          nextPrev.push(prev[best]); nextAge.push(0);
+        } else {
+          tracks.push([{ x: x2, y: my }]);
+          nextPrev.push(tracks.length - 1); nextAge.push(0);
+        }
+      }
+      // 未被接上的轨迹：保留（等待后续列接续），年龄 +1
+      for (var t3 = 0; t3 < prev.length; t3++) {
+        if (!used[t3] && prevAge[t3] + 1 <= maxGap) { nextPrev.push(prev[t3]); nextAge.push(prevAge[t3] + 1); }
+      }
+      prev = nextPrev; prevAge = nextAge;
+    }
+    // 过滤短轨迹（文字笔画/噪点），平滑后归一化
+    var minLen = Math.max(12, W * 0.06 * (1 - sens / 200));   // 灵敏度越高，长度门槛略降
+    var out = tracks.filter(function (t) { return t.length >= minLen; }).map(function (t) {
+      // 三点移动平均：去掉像素锯齿
+      var sm = t.map(function (pt, idx) {
+        var a = t[Math.max(0, idx - 1)], b = pt, c = t[Math.min(t.length - 1, idx + 1)];
+        return { x: b.x, y: (a.y + b.y + c.y) / 3 };
+      });
+      return sm.map(function (pt) {
+        return { u: (pt.x / (W - 1)) * 2 - 1, v: 1 - (pt.y / (H - 1)) * 2 };
+      });
+    });
+    out.sort(function (a, b) { return b.length - a.length; });
+    return out.slice(0, multi ? 8 : 1);
+  }
+
+  /** 图片 dataURL → 曲线点集（异步，内部用离屏 canvas 取像素） */
+  function imageToCurves(dataUrl, opt, done) {
+    var im = new Image();
+    im.onload = function () {
+      try {
+        var MW = 720;
+        var iw = im.width || MW, ih = im.height || MW;
+        var W = Math.max(2, Math.min(iw, MW));
+        var H = Math.max(2, Math.round(ih * W / iw));
+        var cv = document.createElement('canvas');
+        cv.width = W; cv.height = H;
+        var c2 = cv.getContext('2d');
+        c2.drawImage(im, 0, 0, W, H);
+        var px = c2.getImageData(0, 0, W, H);
+        done(pixelsToCurves(px.data, W, H, opt));
+      } catch (e) {
+        done(null);   // 跨域图片等情况：无法读取像素
+      }
+    };
+    im.onerror = function () { done(null); };
+    im.src = dataUrl;
+  }
+
+  var picImgObj = null;   // 已加载的图片对象（供画布底图绘制；避免 draw 中重复加载）
+
+  /** 执行提取（导入图片后调用；参数变化时重新提取） */
+  function runImageExtract(auto) {
+    var st = states.picdraw;
+    if (!st || !st.img) return;
+    imageToCurves(st.img, { invert: !!st.invert, multi: !!st.multi, sensitivity: (st.sensitivity === undefined ? 50 : st.sensitivity) }, function (curves) {
+      var st2 = states.picdraw;
+      if (curves === null) {
+        st2.msg = '无法读取图片像素（可能是跨域图片），请换一张本地图片';
+        st2.curves = [];
+      } else if (!curves.length) {
+        st2.msg = '未在图片中找到连续的线条，可尝试勾选「反色」或换一张更清晰的图片';
+        st2.curves = [];
+      } else {
+        var pts = 0;
+        curves.forEach(function (c) { pts += c.length; });
+        st2.msg = '提取完成：共 ' + curves.length + ' 条曲线、' + pts + ' 个采样点' +
+          (auto ? '（已自动绘制）' : '');
+        st2.curves = curves;
+      }
+      draw();
+      updateFormulas();
+      var tip = document.getElementById('imgTip');
+      if (tip) tip.textContent = st2.msg;
+    });
+  }
+
+  /** 构建「图片绘制」面板（第七版块） */
+  function buildImagePanel() {
+    var st = S();
+    st.curves = st.curves || [];
+
+    var title = document.createElement('div');
+    title.className = 'panel-title';
+    title.textContent = '图片绘制 · 提取图片中的图像';
+    panel.appendChild(title);
+
+    // 导入 / 清空
+    var tools = document.createElement('div');
+    tools.className = 'chat-tools';
+    var pick = document.createElement('button');
+    pick.className = 'miniBtn chat-mini';
+    pick.id = 'imgPickBtn';
+    pick.textContent = '🖼 导入题目图片';
+    var clr = document.createElement('button');
+    clr.className = 'miniBtn chat-mini';
+    clr.id = 'imgClearBtn';
+    clr.textContent = '清空';
+    tools.appendChild(pick); tools.appendChild(clr);
+    panel.appendChild(tools);
+
+    var file = document.createElement('input');
+    file.type = 'file';
+    file.accept = 'image/*';
+    file.id = 'imgFile';
+    file.style.display = 'none';
+    panel.appendChild(file);
+
+    // 图片预览
+    var pv = document.createElement('div');
+    pv.className = 'img-preview';
+    pv.id = 'imgPreview';
+    if (st.img) {
+      var im = document.createElement('img');
+      im.src = st.img;
+      pv.appendChild(im);
+    } else {
+      pv.textContent = '尚未导入图片';
+    }
+    panel.appendChild(pv);
+
+    // 提取参数
+    var params = document.createElement('div');
+    params.className = 'img-params';
+    params.innerHTML = '<div class="chat-cfg-label">提取设置</div>';
+
+    var row1 = document.createElement('div');
+    row1.className = 'img-rowbar';
+    var lab1 = document.createElement('span');
+    lab1.textContent = '视野 ±r';
+    var rg = document.createElement('input');
+    rg.type = 'range'; rg.id = 'imgR';
+    rg.min = 2; rg.max = 12; rg.step = 0.5; rg.value = st.r || 6;
+    var v1 = document.createElement('span');
+    v1.className = 'img-val';
+    v1.id = 'imgRVal';
+    v1.textContent = String(st.r || 6);
+    row1.appendChild(lab1); row1.appendChild(rg); row1.appendChild(v1);
+    params.appendChild(row1);
+
+    // 提取灵敏度：越高越容易把浅色/低对比线条判为前景（照片建议 60~80）
+    var rowS = document.createElement('div');
+    rowS.className = 'img-rowbar';
+    var labS = document.createElement('span');
+    labS.textContent = '灵敏度';
+    var rgs = document.createElement('input');
+    rgs.type = 'range'; rgs.id = 'imgSens';
+    rgs.min = 0; rgs.max = 100; rgs.step = 5;
+    rgs.value = (st.sensitivity === undefined ? 50 : st.sensitivity);
+    var vs = document.createElement('span');
+    vs.className = 'img-val'; vs.id = 'imgSensVal';
+    vs.textContent = String(st.sensitivity === undefined ? 50 : st.sensitivity);
+    rowS.appendChild(labS); rowS.appendChild(rgs); rowS.appendChild(vs);
+    params.appendChild(rowS);
+
+    var row2 = document.createElement('label');
+    row2.className = 'img-chk';
+    row2.innerHTML = '<input type="checkbox" id="imgInvert"> 反色（深底浅线的图片）';
+    params.appendChild(row2);
+
+    // —— 底图显示设置（导入图片即显示在坐标系中，便于对齐与叠加） ——
+    var rowShow = document.createElement('label');
+    rowShow.className = 'img-chk';
+    rowShow.innerHTML = '<input type="checkbox" id="imgShow"> 在坐标系中显示图片底图';
+    params.appendChild(rowShow);
+
+    var rowAlpha = document.createElement('div');
+    rowAlpha.className = 'img-rowbar';
+    var labA = document.createElement('span');
+    labA.textContent = '底图透明度';
+    var rgA = document.createElement('input');
+    rgA.type = 'range'; rgA.id = 'imgAlpha';
+    rgA.min = 10; rgA.max = 100; rgA.step = 5;
+    rgA.value = Math.round((st.imgAlpha === undefined ? 0.85 : st.imgAlpha) * 100);
+    var vA = document.createElement('span');
+    vA.className = 'img-val'; vA.id = 'imgAlphaVal';
+    vA.textContent = String(rgA.value);
+    rowAlpha.appendChild(labA); rowAlpha.appendChild(rgA); rowAlpha.appendChild(vA);
+    params.appendChild(rowAlpha);
+
+    var rowScale = document.createElement('div');
+    rowScale.className = 'img-rowbar';
+    var labSc = document.createElement('span');
+    labSc.textContent = '底图缩放';
+    var rgSc = document.createElement('input');
+    rgSc.type = 'range'; rgSc.id = 'imgScale';
+    rgSc.min = 30; rgSc.max = 250; rgSc.step = 5;
+    rgSc.value = Math.round((st.imgScale === undefined ? 1 : st.imgScale) * 100);
+    var vSc = document.createElement('span');
+    vSc.className = 'img-val'; vSc.id = 'imgScaleVal';
+    vSc.textContent = String(rgSc.value);
+    rowScale.appendChild(labSc); rowScale.appendChild(rgSc); rowScale.appendChild(vSc);
+    params.appendChild(rowScale);
+
+    // 位置微调（对齐坐标系用）
+    var rowDX = document.createElement('div');
+    rowDX.className = 'img-rowbar';
+    var labDX = document.createElement('span');
+    labDX.textContent = '水平';
+    var rgDX = document.createElement('input');
+    rgDX.type = 'range'; rgDX.id = 'imgDX';
+    rgDX.min = -100; rgDX.max = 100; rgDX.step = 2;
+    rgDX.value = Math.round((st.imgDX || 0) * 20);
+    var vDX = document.createElement('span');
+    vDX.className = 'img-val'; vDX.id = 'imgDXVal';
+    vDX.textContent = fmt(st.imgDX || 0);
+    rowDX.appendChild(labDX); rowDX.appendChild(rgDX); rowDX.appendChild(vDX);
+    params.appendChild(rowDX);
+
+    var rowDY = document.createElement('div');
+    rowDY.className = 'img-rowbar';
+    var labDY = document.createElement('span');
+    labDY.textContent = '垂直';
+    var rgDY = document.createElement('input');
+    rgDY.type = 'range'; rgDY.id = 'imgDY';
+    rgDY.min = -100; rgDY.max = 100; rgDY.step = 2;
+    rgDY.value = Math.round((st.imgDY || 0) * 20);
+    var vDY = document.createElement('span');
+    vDY.className = 'img-val'; vDY.id = 'imgDYVal';
+    vDY.textContent = fmt(st.imgDY || 0);
+    rowDY.appendChild(labDY); rowDY.appendChild(rgDY); rowDY.appendChild(vDY);
+    params.appendChild(rowDY);
+
+    var row3 = document.createElement('label');
+    row3.className = 'img-chk';
+    row3.innerHTML = '<input type="checkbox" id="imgMulti"> 提取多条曲线（最多 8 条）';
+    params.appendChild(row3);
+
+    var row4 = document.createElement('div');
+    row4.className = 'img-rowbar';
+    var lab4 = document.createElement('span');
+    lab4.textContent = '线条颜色';
+    var sel = document.createElement('select');
+    sel.id = 'imgColor';
+    MARK_COLORS.forEach(function (c, i) {
+      var op = document.createElement('option');
+      op.value = c; op.textContent = MARK_COLOR_NAMES[i];
+      if (c === (st.color || MARK_COLORS[0])) op.selected = true;
+      sel.appendChild(op);
+    });
+    sel.value = st.color || MARK_COLORS[0];
+    row4.appendChild(lab4); row4.appendChild(sel);
+    params.appendChild(row4);
+    panel.appendChild(params);
+
+    // 提取按钮
+    var go = document.createElement('button');
+    go.className = 'miniBtn';
+    go.id = 'imgExtractBtn';
+    go.textContent = '提取并绘制图像';
+    panel.appendChild(go);
+
+    // 提示
+    var tip = document.createElement('div');
+    tip.className = 'img-tip';
+    tip.id = 'imgTip';
+    tip.textContent = st.msg || '导入题目图片后点「提取并绘制图像」：程序会自动提取图中的曲线并按坐标系重绘（完全本地处理，图片不会上传）';
+    panel.appendChild(tip);
+
+    // 事件
+    pick.addEventListener('click', function () { document.getElementById('imgFile').click(); });
+    file.addEventListener('change', function () {
+      var f = this.files && this.files[0];
+      if (!f) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        var s2 = states.picdraw;
+        s2.img = reader.result;
+        s2.curves = [];
+        s2.msg = '图片已导入，正在显示并提取图像…';
+        // 加载图片对象（供画布底图显示；失败说明浏览器不支持该格式，如 iPhone 的 HEIC）
+        var im = new Image();
+        im.onload = function () {
+          picImgObj = im;
+          draw();
+          runImageExtract(true);   // 底图显示后自动提取一次
+        };
+        im.onerror = function () {
+          picImgObj = null;
+          s2.msg = '图片无法显示：浏览器不支持该格式（如 iPhone 的 HEIC），请先另存为 JPG 或 PNG 再导入';
+          var t = document.getElementById('imgTip');
+          if (t) t.textContent = s2.msg;
+          draw();
+        };
+        im.src = reader.result;
+        s2.img = reader.result;
+        buildPanel();      // 刷新预览
+      };
+      reader.readAsDataURL(f);
+      this.value = '';
+    });
+    clr.addEventListener('click', function () {
+      var s3 = states.picdraw;
+      s3.img = ''; s3.curves = []; s3.msg = '';
+      picImgObj = null;
+      buildPanel();
+      draw(); updateFormulas();
+    });
+    rg.addEventListener('input', function () {
+      var s4 = states.picdraw;
+      s4.r = parseFloat(this.value) || 6;
+      document.getElementById('imgRVal').textContent = String(s4.r);
+      draw();   // 归一化坐标已保存，改视野只需重绘
+    });
+    document.getElementById('imgSens').addEventListener('input', function () {
+      var s5 = states.picdraw;
+      s5.sensitivity = parseInt(this.value, 10) || 0;
+      document.getElementById('imgSensVal').textContent = String(s5.sensitivity);
+    });
+    document.getElementById('imgSens').addEventListener('change', function () {
+      if (states.picdraw.img) runImageExtract(false);
+    });
+    document.getElementById('imgInvert').checked = !!st.invert;
+    // 底图显示控制
+    document.getElementById('imgShow').checked = (st.showImg !== false);
+    document.getElementById('imgShow').addEventListener('change', function () {
+      states.picdraw.showImg = this.checked;
+      draw();
+    });
+    document.getElementById('imgAlpha').addEventListener('input', function () {
+      states.picdraw.imgAlpha = (parseInt(this.value, 10) || 85) / 100;
+      document.getElementById('imgAlphaVal').textContent = this.value;
+      draw();
+    });
+    document.getElementById('imgScale').addEventListener('input', function () {
+      states.picdraw.imgScale = (parseInt(this.value, 10) || 100) / 100;
+      document.getElementById('imgScaleVal').textContent = this.value;
+      draw();
+    });
+    document.getElementById('imgDX').addEventListener('input', function () {
+      states.picdraw.imgDX = (parseFloat(this.value) || 0) / 20;
+      document.getElementById('imgDXVal').textContent = fmt(states.picdraw.imgDX);
+      draw();
+    });
+    document.getElementById('imgDY').addEventListener('input', function () {
+      states.picdraw.imgDY = (parseFloat(this.value) || 0) / 20;
+      document.getElementById('imgDYVal').textContent = fmt(states.picdraw.imgDY);
+      draw();
+    });
+    document.getElementById('imgMulti').checked = !!st.multi;
+    document.getElementById('imgInvert').addEventListener('change', function () {
+      states.picdraw.invert = this.checked;
+      if (states.picdraw.img) runImageExtract(false);
+    });
+    document.getElementById('imgMulti').addEventListener('change', function () {
+      states.picdraw.multi = this.checked;
+      if (states.picdraw.img) runImageExtract(false);
+    });
+    sel.addEventListener('change', function () {
+      states.picdraw.color = this.value;
+      draw();
+    });
+    go.addEventListener('click', function () {
+      if (!states.picdraw.img) {
+        var t = document.getElementById('imgTip');
+        if (t) t.textContent = '请先点击「🖼 导入题目图片」选择一张图片';
+        return;
+      }
+      states.picdraw.msg = '正在提取图像…';
+      var t2 = document.getElementById('imgTip');
+      if (t2) t2.textContent = states.picdraw.msg;
+      runImageExtract(false);
+    });
+  }
+
   function buildPanel() {
     var m = current(), st = S();
     panel.innerHTML = '';
+    panel.style.width = '';   // 恢复默认面板宽度
+    if (m.id === 'picdraw') {
+      // 图片绘制版块：面板稍加宽以便预览图片；手机/小平板交给媒体查询控制宽度
+      if (window.innerWidth > 1024) panel.style.width = '400px';
+      buildImagePanel();
+      return;
+    }
     var title = document.createElement('div');
     title.className = 'panel-title';
     title.textContent = m.cat + ' · ' + m.name;
@@ -3470,7 +4282,7 @@
   /* ================================================================
      ⑨ 模型导航（分类 + 按钮）
      ================================================================ */
-  var CATS = ['基本函数', '三角函数', '圆锥曲线', '立体几何', '数列与代数', '统计与导数'];
+  var CATS = ['基本函数', '三角函数', '圆锥曲线', '立体几何', '数列与代数', '统计与导数', '图片绘制'];
   var activeCat = '基本函数';
   var catRow = document.getElementById('catRow');
   var modelRow = document.getElementById('modelRow');
